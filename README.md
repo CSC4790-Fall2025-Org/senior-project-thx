@@ -1,7 +1,7 @@
 # Thx! – A Student-to-Student Service Marketplace
 
 ## 📖 Introduction
-**Thx!** is a mobile app where students can list, discover, and book services offered by their peers on campus — from haircuts, nail appointments, tailoring, tutoring, and more.  
+**Thx!** is a mobile app where students can list, discover, and book services offered by their peers on campus including haircuts, nail appointments, tailoring, tutoring, and more.  
 
 Many students have unique skills and side hustles, but there’s no central place for others to find them. Thx! solves this by providing a trusted peer-to-peer marketplace that supports student entrepreneurship while making it easier for clients to connect with the right service.
 
@@ -18,7 +18,7 @@ Many students have unique skills and side hustles, but there’s no central plac
 - 👤 **User Profiles** – Manage activity as a service provider or client.  
 - 🤝 **Peer Marketplace** – Campus-first, designed for trust and accessibility.  
 
-## 🧱 Tech Stack
+## 🛠 Tech Stack
 
 - **Frontend**: React Native and Expo
 - **Backend**: Django (Python)
@@ -68,8 +68,11 @@ This will open the app in Expo DevTools — from there you can run it on iOS Sim
 ## 👥 Authors
 
 Abigail Loyson 
+
 Allyssa Panganiban
+
 Mya Dang  
+
 Rachel Phan   
 
 **Villanova University**
