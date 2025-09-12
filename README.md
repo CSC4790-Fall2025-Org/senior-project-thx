@@ -29,7 +29,7 @@ Many students have unique skills and side hustles, but there’s no central plac
 ### 1. 📦 Clone the Repo
 
 ```bash
-git clone https://github.com/CSC4700-Spring2025-Org/group2-Tutti.git](https://github.com/CSC4790-Fall2025-Org/senior-project-thx.git
+git clone https://github.com/CSC4790-Fall2025-Org/senior-project-thx.git
 cd senior-project-thx
 ```
 
