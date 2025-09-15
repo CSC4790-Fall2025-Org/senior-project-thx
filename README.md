@@ -49,9 +49,9 @@ npm install
 npx expo install @react-native-picker/picker
 npx expo install expo-router
 npx expo install @expo/vector-icons
+npx expo install expo-linear-gradient
 ```
 
-(Also install any other packages like Firebase if used)
 
 ---
 
