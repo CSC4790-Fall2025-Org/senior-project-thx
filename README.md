@@ -47,7 +47,9 @@ npm install
 
 ```bash
 npm install @react-navigation/native
-npm install @react-navigation/stack 
+npm install @react-navigation/stack
+npx expo install react-native-screens react-native-safe-area-context
+npx expo install react-native-gesture-handler
 npx expo install expo-router
 npx expo install @expo/vector-icons
 ```
