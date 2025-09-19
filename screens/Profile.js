@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
-import AppStyles, { colors } from '../components/AppStyles';
+import AppStyles, { colors } from '../styles/AppStyles';
 import { dummyData } from '../data/Dummy';
 import ServiceCard from '../components/ServiceCard';
 // Import LinearGradient for the gradient background

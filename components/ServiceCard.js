@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors } from './AppStyles';
+import { colors } from '../styles/AppStyles';
 
 export default function ServiceCard({ image, title, price, category, onEdit }) {
   return (

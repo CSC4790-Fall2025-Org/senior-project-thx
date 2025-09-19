@@ -1,26 +1,34 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors } from './AppStyles';
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { colors } from '../styles/AppStyles';
 
-export default function BookingCard({
-  image, title, provider, date, time, status, onMenuPress,
-}) {
+const { width } = Dimensions.get('window');
+
+export default function BookingCard({ image, service, stylist, date, time, status }) {
   return (
     <View style={styles.card}>
-      <Image source={image} style={styles.image} resizeMode="cover" />
-      <View style={styles.details}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.provider}>By {provider}</Text>
-        <View style={styles.datetimeRow}>
-          <Text style={styles.datetime}>Date{"\n"}{date}</Text>
-          <Text style={styles.datetime}>Time{"\n"}{time}</Text>
-        </View>
-        <View style={styles.statusRow}>
-          <Text style={styles.status}>{status}</Text>
+      <Image source={image} style={styles.image} />
+      <View style={styles.info}>
+        <Text style={styles.service}>{service}</Text>
+        <Text style={styles.stylist}>By {stylist}</Text>
+        <View style={styles.detailsRow}>
+          <View style={styles.detailCol}>
+            <Text style={styles.detailLabel}>Date</Text>
+            <Text style={styles.detailText}>{date}</Text>
+          </View>
+          <View style={styles.detailCol}>
+            <Text style={styles.detailLabel}>Time</Text>
+            <Text style={styles.detailText}>{time}</Text>
+          </View>
+          <View style={styles.detailCol}>
+            <Text style={styles.status}>{status}</Text>
+          </View>
         </View>
       </View>
-      <TouchableOpacity style={styles.menuBtn} onPress={onMenuPress}>
-        <Text style={styles.menuIcon}>⋮</Text>
+      {/* Dots menu icon */}
+      <TouchableOpacity style={styles.menuIcon}>
+        <Ionicons name="ellipsis-vertical" size={width * 0.06} color={colors.heading} />
       </TouchableOpacity>
     </View>
   );
@@ -30,63 +38,64 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 12,
-    marginVertical: 8,
+    borderRadius: width * 0.035,
+    padding: width * 0.03,
+    marginBottom: width * 0.04,
+    shadowColor: '#000',
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 3,
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: colors.textPrimary,
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    position: 'relative',
   },
   image: {
-    width: 72,
-    height: 72,
-    borderRadius: 12,
-    marginRight: 14,
+    width: width * 0.2,
+    height: width * 0.2,
+    borderRadius: width * 0.03,
+    marginRight: width * 0.04,
     backgroundColor: colors.placeholder,
   },
-  details: {
+  info: {
     flex: 1,
-    justifyContent: 'center',
   },
-  title: {
-    fontSize: 17,
-    fontWeight: '600',
+  service: {
+    fontSize: width * 0.05,
+    fontWeight: 'bold',
     color: colors.heading,
+    marginBottom: 2,
   },
-  provider: {
-    fontSize: 14,
-    color: colors.textPrimary,
-    marginBottom: 5,
+  stylist: {
+    fontSize: width * 0.037,
+    color: colors.heading,
+    marginBottom: width * 0.012,
   },
-  datetimeRow: {
+  detailsRow: {
     flexDirection: 'row',
-    marginVertical: 4,
+    alignItems: 'center',
   },
-  datetime: {
-    fontSize: 13,
+  detailCol: {
+    marginRight: width * 0.06,
+  },
+  detailLabel: {
+    fontSize: width * 0.032,
     color: colors.textPrimary,
-    marginRight: 18,
+    fontWeight: '600',
+    marginBottom: 2,
   },
-  statusRow: {
-    marginTop: 2,
-    alignItems: 'flex-end',
+  detailText: {
+    fontSize: width * 0.035,
+    color: colors.textPrimary,
   },
   status: {
-    fontSize: 13,
-    color: colors.primary,
+    fontSize: width * 0.035,
+    color: colors.gradientEnd,
     fontWeight: 'bold',
-  },
-  menuBtn: {
-    padding: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+    marginLeft: width * 0.02,
   },
   menuIcon: {
-    fontSize: 22,
-    color: colors.heading,
+    position: 'absolute',
+    right: width * 0.03,
+    top: width * 0.03,
+    padding: 8,
   },
 });
