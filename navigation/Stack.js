@@ -1,5 +1,5 @@
-import { createStackNavigator } from "@react-navigation/stack";
-import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import 'react-native-gesture-handler';
 
 import Home from "../screens/Home";
 import Login from "../screens/Login";
@@ -13,20 +13,18 @@ import AddServices from "../screens/AddServices";
 import EditServices from "../screens/EditServices";
 import MessageList from "../screens/MessageList";
 import Messages from "../screens/Messages";
+import Test from "../screens/Test";
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
-export default function AppStack() {
+export const AppStack = () => {
   return (
-    <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName="Login"
-        screenOptions={{
-          headerShown: false, // hide headers globally
-        }}
-      >
+    
+      <Stack.Navigator initialRouteName="Test" screenOptions={{ headerShown: false }}>
+        {/* Test */}
+        <Stack.Screen name= "Test" component={Test} />
         {/* Auth */}
-        <Stack.Screen name="Login" component={Login} />
+        <Stack.Screen name= "Login" component={Login} />
         <Stack.Screen name="SignUp" component={SignUp} />
 
         {/* Main App */}
@@ -45,6 +43,6 @@ export default function AppStack() {
         <Stack.Screen name="MessageList" component={MessageList} />
         <Stack.Screen name="Messages" component={Messages} />
       </Stack.Navigator>
-    </NavigationContainer>
+      
   );
 }
