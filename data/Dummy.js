@@ -27,7 +27,7 @@ export const dummyData = [
             { date: "2025-09-18", time: "9:00 AM" },
             { date: "2025-09-18", time: "3:30 PM" },
           ],
-          image: require("../assets/makeup.jpg"),
+          image: require("../assets/makeup.png"),
         },
       ],
     },
