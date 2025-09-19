@@ -116,7 +116,13 @@ const Home = ({navigation}) => {
                                 <Text style={styles.serviceCost}>{item.cost}</Text>
                                 <TouchableOpacity
                                 style={styles.bookButton}
-                                onPress={() => navigation.navigate('ServiceDetails', { serviceId: item.id })}
+                                onPress={() => navigation.navigate('ServiceDetails', {
+                                    serviceId: item.id,
+                                    type: item.type,
+                                    provider: item.provider,
+                                    cost: item.cost,
+                                    image: item.image,
+                                  })}
                                 >
                                 <Text style={styles.bookButtonText}>Book</Text>
                                 </TouchableOpacity>
