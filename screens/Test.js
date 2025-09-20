@@ -12,7 +12,9 @@ const Test = ({ navigation }) => {
         'EditServices',
         'AddServices',
         'ServiceDetails',
-        'SavedServices'
+        'SavedServices',
+        'MessageList',
+        'Messages',
     ];
 
     return (

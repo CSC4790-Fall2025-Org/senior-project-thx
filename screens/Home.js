@@ -45,7 +45,7 @@ const Home = ({navigation}) => {
 
         {/* LINEAR GRADIENT CONTENT */}
             <LinearGradient
-                colors={['#F6C484', '#ED7678']}
+                colors={['#F6C484A6', '#ED7678A6']}
                 style={styles.gradient}
                 start={{ x: 0, y: 1 }}
                 end={{ x: 1, y: 0 }}
@@ -139,6 +139,9 @@ const Home = ({navigation}) => {
             <View style={styles.navBarContainer}>
                 <TouchableOpacity onPress={() => navigation.navigate('MyBookings')}>
                     <Feather name="calendar" size={28} color="#333" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => navigation.navigate('MessageList')}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={28} color="#333" />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => navigation.navigate('Home')}>
                     <Ionicons name="home-outline" size={28} color="#333" />

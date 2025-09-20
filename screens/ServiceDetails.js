@@ -17,7 +17,7 @@ const ServiceDetails = ({route, navigation}) => {
         <View style = {styles.container}>
             {/* LINEAR GRADIENT CONTENT */}
             <LinearGradient
-                colors={['#F6C484', '#ED7678']}
+                colors={['#F6C484A6', '#ED7678A6']}
                 style={styles.gradient}
                 start={{ x: 0, y: 1 }}
                 end={{ x: 1, y: 0 }}
