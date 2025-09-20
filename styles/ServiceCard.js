@@ -1,23 +1,45 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from './AppStyles';
 
-export default function ServiceCard({ image, title, price, category, onEdit }) {
+const { width } = Dimensions.get('window');
+
+export default function ServiceCard({ image, title, price, category, onEdit, onDelete }) {
+  // Show a confirmation alert before delete
+  const handleDelete = () => {
+    Alert.alert(
+      "Delete Service",
+      "Are you sure you want to delete this service?",
+      [
+        { text: "No", onPress: () => {}, style: "cancel" },
+        { text: "Yes", onPress: () => { if (onDelete) onDelete(); } }
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
     <View style={styles.card}>
-      <Image source={image} style={styles.image} resizeMode="cover" />
+      <Image source={image} style={styles.image} />
       <View style={styles.info}>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.price}>{price}</Text>
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{category}</Text>
+        <View style={styles.tagRow}>
+          <View style={styles.categoryTag}>
+            <Text style={styles.categoryTagText}>{category}</Text>
+          </View>
         </View>
       </View>
-      {onEdit && (
-        <TouchableOpacity style={styles.editBtn} onPress={onEdit}>
-          <Text style={styles.editIcon}>✏️</Text>
+      <View style={styles.iconColumn}>
+        {/* Clicking edit calls onEdit, which navigates to EditServices */}
+        <TouchableOpacity style={styles.iconBtn} onPress={onEdit}>
+          <Ionicons name="create-outline" size={width * 0.07} color={colors.heading} />
         </TouchableOpacity>
-      )}
+        <TouchableOpacity style={styles.iconBtn} onPress={handleDelete}>
+          <Ionicons name="trash-outline" size={width * 0.07} color={colors.gradientEnd} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -26,21 +48,22 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 12,
-    marginVertical: 8,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: colors.textPrimary,
+    borderRadius: width * 0.045,
+    padding: width * 0.03,
+    marginBottom: width * 0.03,
+    shadowColor: '#000',
     shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 12,
+    elevation: 7,
+    alignItems: 'center',
+    position: 'relative',
+    minHeight: width * 0.30,
   },
   image: {
-    width: 72,
-    height: 72,
-    borderRadius: 12,
-    marginRight: 14,
+    width: width * 0.3,
+    height: width * 0.3,
+    borderRadius: width * 0.02,
+    marginRight: width * 0.05,
     backgroundColor: colors.placeholder,
   },
   info: {
@@ -48,34 +71,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: width * 0.055,
+    fontWeight: '800',
     color: colors.heading,
+    marginBottom: 2,
   },
   price: {
-    fontSize: 15,
-    fontWeight: 'bold',
+    fontSize: width * 0.042,
     color: colors.textPrimary,
-    marginVertical: 4,
+    fontWeight: '600',
+    marginBottom: 2,
   },
-  categoryBadge: {
+  tagRow: {
+    flexDirection: 'row',
+    marginTop: 6,
+  },
+  categoryTag: {
+    backgroundColor: '#ececec',
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 6,
     alignSelf: 'flex-start',
-    backgroundColor: colors.placeholder,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    marginTop: 2,
   },
-  categoryText: {
-    fontSize: 12,
+  categoryTagText: {
+    fontSize: width * 0.032,
     color: colors.textPrimary,
+    fontWeight: '600',
+    textAlign: 'center',
   },
-  editBtn: {
-    marginLeft: 8,
-    padding: 4,
+  iconColumn: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
   },
-  editIcon: {
-    fontSize: 20,
-    color: colors.heading,
+  iconBtn: {
+    marginBottom: 4,
+    padding: 13,
   },
 });

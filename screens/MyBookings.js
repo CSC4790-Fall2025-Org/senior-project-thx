@@ -1,14 +1,138 @@
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import AppStyles, { colors } from '../styles/AppStyles';
+import BookingCard from '../styles/BookingCard';
 
+const { width, height } = Dimensions.get('window');
 
+// Sample booking data
+const bookingsData = [
+  {
+    id: '1',
+    image: require('../assets/haircuts.jpg'),
+    service: 'Haircuts',
+    stylist: "Hairstylists’ Name",
+    date: 'Mar 22, 2025',
+    time: '10:00 AM',
+  },
+  { id: '2', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
+  { id: '3', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
+  { id: '4', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
+  { id: '5', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
+  { id: '6', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
+];
 
-
-const MyBookings = () => {
-    return (
-        <View>
-            <Text>My Bookings</Text>
+export default function MyBookings({ navigation }) {
+  return (
+    <View style={styles.container}>
+      {/* Gradient Header */}
+      <LinearGradient
+        colors={[colors.gradientStart, colors.gradientEnd]}
+        style={styles.headerBg}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        {/* Back button with text */}
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="chevron-back" size={width * 0.03} color={colors.heading} />
+          <Text style={styles.backText}>Back</Text>
+        </TouchableOpacity>
+        {/* Profile avatar in top right */}
+        <View style={styles.avatarWrapper}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarIcon}>🙂</Text>
+          </View>
         </View>
-    );
+      </LinearGradient>
+      {/* Main content */}
+      <View style={styles.content}>
+        <Text style={styles.title}>My Bookings <Text style={styles.count}>({bookingsData.length})</Text></Text>
+        <FlatList
+          data={bookingsData}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <BookingCard
+              image={item.image}
+              service={item.service}
+              stylist={item.stylist}
+              date={item.date}
+              time={item.time}
+              onEdit={() => navigation.navigate('EditServices', { service: item })}
+              onDelete={() => alert(`Delete booking id ${item.id}`)}
+              onMessage={() => alert(`Message stylist for booking id ${item.id}`)}
+            />
+          )}
+          contentContainerStyle={{ paddingBottom: 36 }}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    </View>
+  );
 }
 
-export default MyBookings;
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  headerBg: {
+    width: width,
+    height: height * 0.13,
+    paddingTop: height * 0.06,
+    paddingHorizontal: width * 0.05,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute',
+    left: width * 0.05,
+    top: height * 0.06,
+    zIndex: 1,
+  },
+  backText: {
+    fontSize: width * 0.04,
+    color: colors.heading,
+    fontWeight: '500',
+    marginLeft: 3,
+  },
+  avatarWrapper: {
+    position: 'absolute',
+    right: width * 0.05,
+    top: height * 0.06,
+    zIndex: 1,
+  },
+  avatarCircle: {
+    width: width * 0.12,
+    height: width * 0.12,
+    borderRadius: width * 0.06,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarIcon: {
+    fontSize: width * 0.06,
+  },
+  content: {
+    marginTop: height * 0.02,
+    paddingHorizontal: width * 0.04,
+    flex: 1,
+  },
+  title: {
+    fontSize: width * 0.065,
+    fontWeight: 'bold',
+    color: colors.heading,
+    marginBottom: height * 0.018,
+    marginTop: height * 0.01,
+  },
+  count: {
+    fontSize: width * 0.045,
+    color: colors.heading,
+    fontWeight: '400',
+  },
+});
