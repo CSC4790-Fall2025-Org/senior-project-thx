@@ -70,9 +70,9 @@ export default StyleSheet.create({
   },
   addServicesBtn: {
     backgroundColor: colors.primary,
-    borderRadius: width * 0.03,
-    paddingVertical: height * 0.018, // About 1.8% of screen height
-    paddingHorizontal: width * 0.08,
+    borderRadius: width * 0.04,
+    paddingVertical: height * 0.015, // About 1.8% of screen height
+    paddingHorizontal: width * 0.05,
     alignSelf: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.12,
