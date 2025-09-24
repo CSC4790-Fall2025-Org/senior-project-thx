@@ -5,29 +5,46 @@ export const dummyData = [
       location: "Friar Hall",
       services: [
         {
-          service_id: "1",
-          name: "Haircut",
-          description: "I offer haircuts for all styles like a quick trim, a fresh new look, or something special for an event!",
-          price: 30.0,
-          tag: "Beauty",
-          availability: [
-            { date: "2025-09-17", time: "10:00 AM" },
-            { date: "2025-09-17", time: "2:00 PM" },
-            { date: "2025-09-18", time: "1:00 PM" },
-          ],
-          image: require("../assets/haircuts.jpg"),
+          provider: "Mya Dang",
+          service: "Mya's Hair Dye",
+          description: "You can get a box dye with the color of your choice before.",
+          price: 10,
+          tag: "Haircuts",
+          imageUri: require('../assets/haircuts.jpg'),
+          availability: {
+            "2025-09-18": [
+              {
+                "start": "2025-09-18T14:00:00.000Z",
+                "end": "2025-09-18T15:00:00.000Z"
+              }
+            ],
+            "2025-09-30": [
+              {
+                "start": "2025-09-30T17:00:00.000Z",
+                "end": "2025-09-30T18:00:00.000Z"
+              },
+              {
+                "start": "2025-09-30T21:00:00.000Z",
+                "end": "2025-09-30T22:00:00.000Z"
+              }
+            ]
+          }
         },
         {
-          service_id: "2",
-          name: "Makeup",
+          provider: "Mya Dang",
+          service: "Makeup",
           description: "I can do makeup for formal, parties, weddings, and any other special occations.",
           price: 20.0,
           tag: "Beauty",
-          availability: [
-            { date: "2025-09-18", time: "9:00 AM" },
-            { date: "2025-09-18", time: "3:30 PM" },
-          ],
-          image: require("../assets/makeup.png"),
+          imageUri: require('../assets/makeup.png'),
+          availability: {
+            "2025-09-18": [
+              {
+                "start": "2025-09-18T14:00:00.000Z",
+                "end": "2025-09-18T15:00:00.000Z"
+              }
+            ],
+          },
         },
       ],
     },
@@ -37,18 +54,49 @@ export const dummyData = [
       location: "Klekotka Hall",
       services: [
         {
-          service_id: "1",
-          name: "Nails",
-          description: "",
-          price: 25.0,
+          provider: "Allyssa Panganiban",
+          service: "allyssa's pangaNails",
+          description: "etc etc",
+          price: 20.0,
           tag: "Beauty",
-          availability: [
-            { date: "2025-09-19", time: "11:00 AM" },
-            { date: "2025-09-20", time: "4:00 PM" },
-          ],
-          image: require("../assets/nails.jpg"),
+          imageUri: require('../assets/makeup.png'),
+          availability: {
+            "2025-09-19": [
+              {
+                "start": "2025-09-19T14:00:00.000Z",
+                "end": "2025-09-19T15:00:00.000Z"
+              }
+            ],
+            "2025-09-20": [
+              {
+                "start": "2025-09-20T12:00:00.000Z",
+                "end": "2025-09-20T19:00:00.000Z"
+              }
+            ]
+          },
         },
+        {
+          provider: "Allyssa Panganiban",
+          service: "allysSnips",
+          description: "get it",
+          price: 40.0,
+          tag: "Cooking",
+          imageUri: require('../assets/haircuts.jpg'),
+          availability: {
+            "2025-09-30": [
+              {
+                "start": "2025-09-30T14:00:00.000Z",
+                "end": "2025-09-30T15:00:00.000Z"
+              }
+            ],
+            "2025-09-21": [
+              {
+                "start": "2025-09-21T12:00:00.000Z",
+                "end": "2025-09-21T19:00:00.000Z"
+              }
+            ]
+          }, 
+        }
       ],
     },
   ];
-  

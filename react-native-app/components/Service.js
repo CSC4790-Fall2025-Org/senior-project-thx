@@ -1,16 +1,200 @@
-import React, { useMemo } from "react";
-import { Text, View, FlatList } from "react-native";
-import dummyData from "../data/dummyData";
-import { useNavigation } from "@react-navigation/native";
+import { Text, View, Image, TouchableOpacity, StyleSheet } from "react-native"; 
 
-const Service = ({service_id, name, description, price, tag, availability, image}) => {
-    const navigation = useNavigation();
-    return (
-        <View>
-            <Text>Service</Text>
+import { useNavigation } from "@react-navigation/native"; 
 
-        </View>
-    );
-}
+ 
 
-    export default Service;
+const Service = ({ item }) => { 
+
+  const navigation = useNavigation(); 
+
+
+  return ( 
+
+    <View style={styles.serviceCard}> 
+
+      <View style={styles.cardContent}> 
+
+        <Image 
+
+          source={item.imageUri} 
+
+          style={styles.serviceImage} 
+
+        /> 
+
+        <View style={styles.serviceInfo}> 
+
+          <Text style={styles.serviceType}>{item.service}</Text> 
+
+          <Text style={styles.providerName}>By {item.provider}</Text> 
+
+          <Text style={styles.serviceCost}>${item.price}</Text> 
+
+          <TouchableOpacity 
+
+            style={styles.bookButton} 
+
+            onPress={() => 
+
+              navigation.navigate("ServiceDetails", { 
+
+                type: item.service, 
+
+                provider: item.provider, 
+
+                cost: item.price, 
+
+                image: item.imageUri, 
+
+              }) 
+
+            } 
+
+          > 
+
+            <Text style={styles.bookButtonText}>Book</Text> 
+
+          </TouchableOpacity> 
+
+        </View> 
+
+        </View> 
+
+    </View> 
+
+  ); 
+
+}; 
+
+ 
+
+const styles = StyleSheet.create({ 
+
+  // SERVICE CARD CONTENT 
+
+  serviceCard: { 
+
+    height: 150, 
+
+    width: 350, 
+
+    borderRadius: 15, 
+
+    backgroundColor: "#fff", 
+
+    alignSelf: "center", 
+
+    justifyContent: "center", 
+
+    borderBottomColor: "#ccc", 
+
+    borderBottomWidth: 2, 
+
+  }, 
+
+  cardContent: { 
+
+    flexDirection: "row", 
+
+    alignItems: "center", 
+
+    padding: 15, 
+
+  }, 
+
+  serviceImage: { 
+
+    width: 120, 
+
+    height: 120, 
+
+    borderRadius: 10, 
+
+    marginRight: 15, 
+
+  }, 
+
+  serviceInfo: { 
+
+    flex: 1, 
+
+  }, 
+
+  serviceType: { 
+
+    fontSize: 16, 
+
+    fontWeight: "600", // semibold 
+
+    fontFamily: "Poppins", 
+
+    color: "#1E1E1E", 
+
+    marginBottom: 5, 
+
+  }, 
+
+  providerName: { 
+
+    fontSize: 13, 
+
+    fontWeight: "500", // medium 
+
+    fontFamily: "Poppins", 
+
+    color: "#555", 
+
+    marginBottom: 5, 
+
+  }, 
+
+  serviceCost: { 
+
+    fontSize: 18, 
+
+    fontFamily: "Poppins", 
+
+    fontWeight: "bold", 
+
+    color: "#000000", 
+
+    marginBottom: 10, 
+
+  }, 
+
+  bookButton: { 
+
+    alignSelf: "flex-start", 
+
+    position: "absolute", 
+
+    right: "5.8%", 
+
+    top: "60%", 
+
+    backgroundColor: "#ED7678", 
+
+    paddingHorizontal: 15, 
+
+    paddingVertical: 5, 
+
+    borderRadius: 10, 
+
+  }, 
+
+  bookButtonText: { 
+
+    fontFamily: "Poppins", 
+
+    fontSize: 12, 
+
+    color: "#FFFFFF", 
+
+  }, 
+
+}); 
+
+ 
+
+export default Service; 
