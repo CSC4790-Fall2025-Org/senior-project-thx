@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AppStyles, { colors } from '../styles/AppStyles';
 import BookingCard from '../styles/BookingCard';
+import Feather from 'react-native-vector-icons/Feather';
 
 const { width, height } = Dimensions.get('window');
 
@@ -64,9 +65,28 @@ export default function MyBookings({ navigation }) {
               onMessage={() => alert(`Message stylist for booking id ${item.id}`)}
             />
           )}
-          contentContainerStyle={{ paddingBottom: 36 }}
+          contentContainerStyle={{ paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
         />
+      </View>
+
+      {/* NAVIGATION BAR */}
+      <View style={styles.navBarContainer}>
+        <TouchableOpacity onPress={() => navigation.navigate('MyBookings')}>
+          <Feather name="calendar" size={28} color="#333" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('MessageList')}>
+          <Ionicons name="chatbubble-ellipses-outline" size={28} color="#333" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+          <Ionicons name="home-outline" size={28} color="#333" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('SavedServices')}>
+          <Feather name="heart" size={28} color="#333" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+          <Ionicons name="person-outline" size={28} color="#333" />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -134,5 +154,19 @@ const styles = StyleSheet.create({
     fontSize: width * 0.045,
     color: colors.heading,
     fontWeight: '400',
+  },
+  navBarContainer: {
+    height: 62,
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    backgroundColor: colors.card,
+    borderTopWidth: 1,
+    borderTopColor: '#ccc',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    zIndex: 10,
   },
 });
