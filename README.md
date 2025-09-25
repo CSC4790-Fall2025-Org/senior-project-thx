@@ -22,7 +22,6 @@ Many students have unique skills and side hustles, but there’s no central plac
 
 - **Frontend**: React Native and Expo
 - **Backend**: Django (Python)
-- **Database**: Firebase
 
 ## 🚀 Getting Started
 
