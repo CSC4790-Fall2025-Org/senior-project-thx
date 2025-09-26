@@ -12,6 +12,7 @@ import {
   FlatList,
   SafeAreaView,
   KeyboardAvoidingView,
+  Dimensions,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -27,7 +28,8 @@ const EXAMPLE = {
     {
       service_id: "1",
       name: "Nails",
-      description: "Professional nail care including shaping, cuticle treatment, and polish for a clean, polished look.",
+      description:
+        "Professional nail care including shaping, cuticle treatment, and polish for a clean, polished look.",
       price: 50.0,
       tag: "Nails",
       availability: {
@@ -49,13 +51,21 @@ const EXAMPLE = {
   ],
 };
 
-// Keep your original tag options AND allow "Beauty" because sample data uses it
-const TAG_OPTIONS = ["Haircuts", "Nails", "Makeup", "Tutoring", "Cooking", "Cleaning", "Beauty"];
+const TAG_OPTIONS = [
+  "Haircuts",
+  "Nails",
+  "Makeup",
+  "Tutoring",
+  "Cooking",
+  "Cleaning",
+  "Beauty",
+];
 
+const { width, height } = Dimensions.get("window");
 const todayISO = () => new Date().toISOString().slice(0, 10);
-const toTimeLabel = (d) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const toTimeLabel = (d) =>
+  d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-// Parse example availability (ISO strings) -> Date instances for editing
 const parseAvailability = (availabilityObj) => {
   if (!availabilityObj) return {};
   const out = {};
@@ -69,7 +79,6 @@ const parseAvailability = (availabilityObj) => {
   return out;
 };
 
-// Serialize back to ISO for saving
 const serializeAvailabilityISO = (slotsByDate) =>
   Object.fromEntries(
     Object.entries(slotsByDate).map(([date, slots]) => [
@@ -82,7 +91,6 @@ const serializeAvailabilityISO = (slotsByDate) =>
   );
 
 export default function EditServices({ navigation, route }) {
-  // You can pass data via route?.params?.service to override the EXAMPLE
   const initial = route?.params?.service ?? EXAMPLE.services[0];
 
   const [service, setService] = useState(initial?.name ?? "");
@@ -91,28 +99,27 @@ export default function EditServices({ navigation, route }) {
     initial?.price != null ? String(initial.price) : ""
   );
   const [tag, setTag] = useState(
-    initial?.tag && TAG_OPTIONS.includes(initial.tag) ? initial.tag : (initial?.tag ?? "")
+    initial?.tag && TAG_OPTIONS.includes(initial.tag)
+      ? initial.tag
+      : initial?.tag ?? ""
   );
 
-  // Image can be a local require or a picked URI; store both gracefully
   const [imageUri, setImageUri] = useState(null);
   const [imageLocal, setImageLocal] = useState(
     typeof initial?.image === "number" ? initial.image : null
   );
 
-  // Tag picker modal
   const [tagPickerVisible, setTagPickerVisible] = useState(false);
 
-  // Calendar + slots
   const [selectedDate, setSelectedDate] = useState(todayISO());
-  const [slotsByDate, setSlotsByDate] = useState(parseAvailability(initial?.availability));
+  const [slotsByDate, setSlotsByDate] = useState(
+    parseAvailability(initial?.availability)
+  );
 
-  // Time picker modal (always closable)
   const [timeModalVisible, setTimeModalVisible] = useState(false);
   const [timeEditing, setTimeEditing] = useState(null); // { dateKey, id, field }
   const [tempTime, setTempTime] = useState(new Date());
 
-  // Ensure "Beauty" appears as an option if it's in sample data but not in list
   useEffect(() => {
     if (initial?.tag && !TAG_OPTIONS.includes(initial.tag)) {
       TAG_OPTIONS.push(initial.tag);
@@ -120,7 +127,9 @@ export default function EditServices({ navigation, route }) {
   }, [initial?.tag]);
 
   const markedDates = useMemo(() => {
-    const marks = { [selectedDate]: { selected: true, selectedColor: "#FFD9E1" } };
+    const marks = {
+      [selectedDate]: { selected: true, selectedColor: "#FFD9E1" },
+    };
     Object.keys(slotsByDate).forEach((d) => {
       if (!marks[d]) marks[d] = { marked: true, dotColor: "#ff6b8a" };
       else marks[d] = { ...marks[d], marked: true, dotColor: "#ff6b8a" };
@@ -131,9 +140,15 @@ export default function EditServices({ navigation, route }) {
   const daySlots = slotsByDate[selectedDate] || [];
 
   const addSlot = () => {
-    const start = new Date(); start.setHours(10, 0, 0, 0);
-    const end = new Date();   end.setHours(11, 0, 0, 0);
-    const newSlot = { id: Math.random().toString(36).slice(2), start, end };
+    const start = new Date();
+    start.setHours(10, 0, 0, 0);
+    const end = new Date();
+    end.setHours(11, 0, 0, 0);
+    const newSlot = {
+      id: Math.random().toString(36).slice(2),
+      start,
+      end,
+    };
     setSlotsByDate((prev) => ({
       ...prev,
       [selectedDate]: [...(prev[selectedDate] || []), newSlot],
@@ -169,7 +184,8 @@ export default function EditServices({ navigation, route }) {
       if (idx === -1) return prev;
       const updated = { ...list[idx], [field]: tempTime };
       if (updated.start > updated.end) {
-        if (field === "start") updated.end = new Date(updated.start.getTime() + 60 * 60 * 1000);
+        if (field === "start")
+          updated.end = new Date(updated.start.getTime() + 60 * 60 * 1000);
         else updated.start = new Date(updated.end.getTime() - 60 * 60 * 1000);
       }
       list[idx] = updated;
@@ -178,7 +194,6 @@ export default function EditServices({ navigation, route }) {
     closeTimeModal();
   };
 
-  // Expo image picker (same as AddServices, you asked to keep everything else identical)
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -187,12 +202,11 @@ export default function EditServices({ navigation, route }) {
     });
     if (!result.canceled) {
       setImageUri(result.assets[0].uri);
-      setImageLocal(null); // switch from local asset to picked URI
+      setImageLocal(null);
     }
   };
 
   const onSave = () => {
-    // Save times as ISO
     const availability = serializeAvailabilityISO(slotsByDate);
 
     const payload = {
@@ -205,13 +219,11 @@ export default function EditServices({ navigation, route }) {
         description,
         price: Number(price),
         tag,
-        // if user picked a new image use URI; otherwise keep require
         image: imageUri || imageLocal,
         availability,
       },
     };
 
-    // Pretty-print so availability doesn't show as [[Object]]
     console.log("Saving (Edit):\n", JSON.stringify(payload, null, 2));
     Alert.alert("Saved", "Service updated successfully!");
     // TODO: PUT/PATCH to your backend
@@ -219,13 +231,17 @@ export default function EditServices({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={8}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior="padding"
+        keyboardVerticalOffset={height * 0.01}
+      >
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation?.goBack?.()}>
             <Text style={styles.backText}>‹ Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Edit Services</Text>
-          <View style={{ width: 48 }} />
+          <View style={{ width: width * 0.12 }} />
         </View>
 
         <ScrollView
@@ -233,7 +249,6 @@ export default function EditServices({ navigation, route }) {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Service */}
           <Text style={styles.label}>Service</Text>
           <TextInput
             style={styles.input}
@@ -244,7 +259,6 @@ export default function EditServices({ navigation, route }) {
             returnKeyType="done"
           />
 
-          {/* Description */}
           <Text style={styles.label}>Description</Text>
           <TextInput
             style={[styles.input, styles.textarea]}
@@ -256,7 +270,6 @@ export default function EditServices({ navigation, route }) {
             textAlignVertical="top"
           />
 
-          {/* Price */}
           <Text style={styles.label}>Price</Text>
           <TextInput
             style={styles.input}
@@ -266,16 +279,17 @@ export default function EditServices({ navigation, route }) {
             placeholder="0.00"
           />
 
-          {/* Service Tag - single select */}
           <Text style={styles.label}>Service Tag</Text>
-          <TouchableOpacity style={styles.select} onPress={() => setTagPickerVisible(true)}>
+          <TouchableOpacity
+            style={styles.select}
+            onPress={() => setTagPickerVisible(true)}
+          >
             <Text style={[styles.selectText, !tag && { color: "#9CA3AF" }]}>
               {tag || "Choose a tag"}
             </Text>
-            <Icon name="chevron-down" size={18} color="#6B7280" />
+            <Icon name="chevron-down" size={width * 0.045} color="#6B7280" />
           </TouchableOpacity>
 
-          {/* Availability */}
           <Text style={styles.label}>Availability</Text>
           <View style={styles.calendarWrap}>
             <Calendar
@@ -293,58 +307,86 @@ export default function EditServices({ navigation, route }) {
             />
           </View>
 
-          {/* Time slots */}
           {daySlots.map((slot) => (
             <View key={slot.id} style={styles.slotRow}>
-              <TouchableOpacity style={[styles.timeBtn, styles.timeBtnLeft]} onPress={() => openTimePicker(slot, "start")}>
+              <TouchableOpacity
+                style={[styles.timeBtn, styles.timeBtnLeft]}
+                onPress={() => openTimePicker(slot, "start")}
+              >
                 <Text style={styles.timeText}>{toTimeLabel(slot.start)}</Text>
               </TouchableOpacity>
               <Text style={styles.toDash}>—</Text>
-              <TouchableOpacity style={[styles.timeBtn, styles.timeBtnRight]} onPress={() => openTimePicker(slot, "end")}>
+              <TouchableOpacity
+                style={[styles.timeBtn, styles.timeBtnRight]}
+                onPress={() => openTimePicker(slot, "end")}
+              >
                 <Text style={styles.timeText}>{toTimeLabel(slot.end)}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => removeSlot(slot.id)} style={styles.iconBtn} accessibilityLabel="Remove slot">
-                <Icon name="close" size={18} color="#6B7280" />
+              <TouchableOpacity
+                onPress={() => removeSlot(slot.id)}
+                style={styles.iconBtn}
+                accessibilityLabel="Remove slot"
+              >
+                <Icon name="close" size={width * 0.045} color="#6B7280" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={addSlot} style={styles.iconBtn} accessibilityLabel="Add slot">
-                <Icon name="add" size={20} color="#6B7280" />
+              <TouchableOpacity
+                onPress={addSlot}
+                style={styles.iconBtn}
+                accessibilityLabel="Add slot"
+              >
+                <Icon name="add" size={width * 0.05} color="#6B7280" />
               </TouchableOpacity>
             </View>
           ))}
           {daySlots.length === 0 && (
             <TouchableOpacity onPress={addSlot} style={styles.addFirstSlot}>
-              <Icon name="add-circle-outline" size={22} />
+              <Icon name="add-circle-outline" size={width * 0.05} />
               <Text style={styles.addFirstSlotText}>Add a time slot</Text>
             </TouchableOpacity>
           )}
 
-          {/* Service Image */}
           <Text style={styles.label}>Service Image</Text>
-          <TouchableOpacity style={styles.imagePicker} onPress={pickImage} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.imagePicker}
+            onPress={pickImage}
+            activeOpacity={0.8}
+          >
             {imageUri ? (
-              <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
+              <Image
+                source={{ uri: imageUri }}
+                style={styles.image}
+                resizeMode="cover"
+              />
             ) : imageLocal ? (
-              <Image source={imageLocal} style={styles.image} resizeMode="cover" />
+              <Image
+                source={imageLocal}
+                style={styles.image}
+                resizeMode="cover"
+              />
             ) : (
               <View style={styles.imagePlaceholder}>
-                <Icon name="image-outline" size={36} color="#9CA3AF" />
-                <Text style={{ color: "#9CA3AF", marginTop: 6 }}>Tap to choose photo</Text>
+                <Icon name="image-outline" size={width * 0.09} color="#9CA3AF" />
+                <Text style={{ color: "#9CA3AF", marginTop: "4%" }}>
+                  Tap to choose photo
+                </Text>
               </View>
             )}
           </TouchableOpacity>
 
-          {/* Save */}
-          <View style={{ height: 16 }} />
+          <View style={{ height: "2%" }} />
           <TouchableOpacity onPress={onSave} style={styles.saveBtn} activeOpacity={0.9}>
             <Text style={styles.saveText}>Save Changes</Text>
           </TouchableOpacity>
-
-          <View style={{ height: 40 }} />
+          <View style={{ height: "5%" }} />
         </ScrollView>
 
-        {/* Time Picker Modal */}
-        <Modal visible={timeModalVisible} animationType="slide" transparent onRequestClose={closeTimeModal}>
+        <Modal
+          visible={timeModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={closeTimeModal}
+        >
           <View style={styles.modalBackdrop}>
             <View style={styles.timeSheet}>
               <View style={styles.modalHeader}>
@@ -367,7 +409,6 @@ export default function EditServices({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* Tag Picker Modal */}
         <Modal
           visible={tagPickerVisible}
           animationType="slide"
@@ -379,7 +420,7 @@ export default function EditServices({ navigation, route }) {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Choose a tag</Text>
                 <TouchableOpacity onPress={() => setTagPickerVisible(false)}>
-                  <Icon name="close" size={22} />
+                  <Icon name="close" size={width * 0.055} />
                 </TouchableOpacity>
               </View>
               <FlatList
@@ -396,7 +437,12 @@ export default function EditServices({ navigation, route }) {
                         setTagPickerVisible(false);
                       }}
                     >
-                      <View style={[styles.radioOuter, selected && styles.radioOuterActive]}>
+                      <View
+                        style={[
+                          styles.radioOuter,
+                          selected && styles.radioOuterActive,
+                        ]}
+                      >
                         {selected && <View style={styles.radioInner} />}
                       </View>
                       <Text style={styles.optionText}>{item}</Text>
@@ -412,114 +458,197 @@ export default function EditServices({ navigation, route }) {
   );
 }
 
-// ---- Styles: identical to AddServices.js (kept intentionally) ----
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fff" },
   flex: { flex: 1 },
-
   header: {
-    paddingTop: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingTop: height * 0.01,
+    paddingHorizontal: width * 0.04,
+    paddingBottom: height * 0.012,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#F3F4F6",
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  backText: { color: "#6B7280", fontSize: 16 },
+  backText: { color: "#6B7280", fontSize: width * 0.04 },
   title: {
     position: "absolute",
-    left: 0, right: 0,
+    left: 0,
+    right: 0,
     textAlign: "center",
-    fontSize: 20, fontWeight: "700", color: "#ff6b8a",
+    fontSize: width * 0.05,
+    fontWeight: "700",
+    color: "#ff6b8a",
   },
-
-  content: { padding: 16, paddingBottom: 24, flexGrow: 1 },
-
-  label: { marginTop: 12, marginBottom: 6, color: "#6B7280", fontSize: 13 },
+  content: { padding: width * 0.04, paddingBottom: height * 0.03, flexGrow: 1 },
+  label: {
+    marginTop: height * 0.015,
+    marginBottom: height * 0.007,
+    color: "#6B7280",
+    fontSize: width * 0.033,
+  },
   input: {
-    borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff",
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12,
-    fontSize: 15, color: "#111827",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#fff",
+    borderRadius: width * 0.025,
+    paddingHorizontal: width * 0.03,
+    paddingVertical: height * 0.016,
+    fontSize: width * 0.038,
+    color: "#111827",
   },
-  textarea: { minHeight: 100, textAlignVertical: "top" },
-
+  textarea: { minHeight: height * 0.13, textAlignVertical: "top" },
   select: {
-    borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 12, flexDirection: "row",
-    alignItems: "center", justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: width * 0.025,
+    paddingHorizontal: width * 0.03,
+    paddingVertical: height * 0.016,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  selectText: { fontSize: 15, color: "#111827" },
-
+  selectText: { fontSize: width * 0.038, color: "#111827" },
   calendarWrap: {
-    borderRadius: 14, overflow: "hidden",
-    borderWidth: 1, borderColor: "#E5E7EB",
+    borderRadius: width * 0.035,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginVertical: height * 0.01,
   },
-  calendar: { borderRadius: 14 },
-
-  slotRow: { marginTop: 12, flexDirection: "row", alignItems: "center" },
+  calendar: { borderRadius: width * 0.035 },
+  slotRow: {
+    marginTop: height * 0.015,
+    flexDirection: "row",
+    alignItems: "center",
+  },
   timeBtn: {
-    flex: 1, borderWidth: 1, borderColor: "#E5E7EB",
-    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "#fff",
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingVertical: height * 0.014,
+    paddingHorizontal: width * 0.03,
+    borderRadius: width * 0.025,
+    backgroundColor: "#fff",
   },
-  timeBtnLeft: { marginRight: 8 },
-  timeBtnRight: { marginLeft: 8 },
-  timeText: { fontSize: 15, color: "#111827", textAlign: "center" },
-  toDash: { marginHorizontal: 6, color: "#6B7280", fontSize: 18 },
-
+  timeBtnLeft: { marginRight: width * 0.02 },
+  timeBtnRight: { marginLeft: width * 0.02 },
+  timeText: { fontSize: width * 0.038, color: "#111827", textAlign: "center" },
+  toDash: { marginHorizontal: width * 0.015, color: "#6B7280", fontSize: width * 0.045 },
   iconBtn: {
-    marginLeft: 8, width: 34, height: 34, borderRadius: 17,
-    borderWidth: 1, borderColor: "#E5E7EB",
-    alignItems: "center", justifyContent: "center", backgroundColor: "#fff",
+    marginLeft: width * 0.02,
+    width: width * 0.09,
+    height: width * 0.09,
+    borderRadius: width * 0.045,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
   },
-
   addFirstSlot: {
-    marginTop: 10, alignSelf: "flex-start", flexDirection: "row", alignItems: "center",
-    gap: 8, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8, backgroundColor: "#F9FAFB",
-    borderWidth: 1, borderColor: "#E5E7EB",
+    marginTop: height * 0.014,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: width * 0.02,
+    paddingVertical: height * 0.008,
+    paddingHorizontal: width * 0.02,
+    borderRadius: width * 0.022,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
-  addFirstSlotText: { color: "#6B7280", marginLeft: 6 },
-
+  addFirstSlotText: { color: "#6B7280", marginLeft: width * 0.015 },
   imagePicker: {
-    marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB",
-    height: 170, alignItems: "center", justifyContent: "center", overflow: "hidden",
+    marginTop: height * 0.012,
+    borderRadius: width * 0.03,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    height: height * 0.22,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   imagePlaceholder: {
-    width: "92%", height: "78%", borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB",
-    alignItems: "center", justifyContent: "center",
+    width: "92%",
+    height: "78%",
+    borderRadius: width * 0.025,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
   },
   image: { width: "100%", height: "100%" },
-
   saveBtn: {
-    backgroundColor: "#ff8ea5", paddingHorizontal: 28, paddingVertical: 12,
-    borderRadius: 12, alignItems: "center", shadowColor: "#ff6b8a",
-    shadowOpacity: 0.2, shadowRadius: 8, elevation: 2,
+    backgroundColor: "#ff8ea5",
+    paddingHorizontal: width * 0.07,
+    paddingVertical: height * 0.017,
+    borderRadius: width * 0.03,
+    alignItems: "center",
+    shadowColor: "#ff6b8a",
+    shadowOpacity: 0.2,
+    shadowRadius: width * 0.02,
+    elevation: 2,
   },
-  saveText: { fontWeight: "700", color: "white", fontSize: 16 },
-
-  // Modal backdrop
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-
-  // Time picker sheet
-  timeSheet: { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 24, paddingHorizontal: 12 },
+  saveText: { fontWeight: "700", color: "white", fontSize: width * 0.04 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  timeSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: width * 0.04,
+    borderTopRightRadius: width * 0.04,
+    paddingBottom: height * 0.03,
+    paddingHorizontal: width * 0.03,
+  },
   modalHeader: {
-    paddingHorizontal: 8, paddingTop: 12, paddingBottom: 8,
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: width * 0.02,
+    paddingTop: height * 0.015,
+    paddingBottom: height * 0.01,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  modalTitle: { fontWeight: "700", fontSize: 16 },
-  cancelBtn: { color: "#6B7280", fontSize: 16 },
-  doneBtn: { color: "#ff6b8a", fontSize: 16, fontWeight: "700" },
-
-  // Tag sheet
-  modalSheet: { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 20, maxHeight: "60%" },
-  sep: { height: StyleSheet.hairlineWidth, backgroundColor: "#E5E7EB", marginLeft: 56 },
-  optionRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14 },
-  optionText: { fontSize: 16, color: "#111827", marginLeft: 12 },
+  modalTitle: { fontWeight: "700", fontSize: width * 0.04 },
+  cancelBtn: { color: "#6B7280", fontSize: width * 0.04 },
+  doneBtn: { color: "#ff6b8a", fontSize: width * 0.04, fontWeight: "700" },
+  modalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: width * 0.04,
+    borderTopRightRadius: width * 0.04,
+    paddingBottom: height * 0.025,
+    maxHeight: "60%",
+  },
+  sep: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E5E7EB",
+    marginLeft: width * 0.15,
+  },
+  optionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: width * 0.04,
+    paddingVertical: height * 0.017,
+  },
+  optionText: { fontSize: width * 0.042, color: "#111827", marginLeft: width * 0.03 },
   radioOuter: {
-    width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#D1D5DB",
-    alignItems: "center", justifyContent: "center",
+    width: width * 0.055,
+    height: width * 0.055,
+    borderRadius: width * 0.0275,
+    borderWidth: 2,
+    borderColor: "#D1D5DB",
+    alignItems: "center",
+    justifyContent: "center",
   },
   radioOuterActive: { borderColor: "#ff6b8a" },
-  radioInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: "#ff6b8a" },
+  radioInner: {
+    width: width * 0.03,
+    height: width * 0.03,
+    borderRadius: width * 0.015,
+    backgroundColor: "#ff6b8a",
+  },
 });
