@@ -29,7 +29,6 @@ export default function Profile() {
   const [email, setEmail] = useState(originalEmail);
   const [location, setLocation] = useState(originalLocation);
 
-  const [showServices, setShowServices] = useState(false);
   const navigation = useNavigation();
 
   const handleDeleteService = (service_id) => {
@@ -48,6 +47,7 @@ export default function Profile() {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={AppStyles.container}>
+        {/* Gradient as original, not absolute */}
         <LinearGradient
           colors={[colors.gradientStart, colors.gradientEnd]}
           start={{ x: 0, y: 0 }}
@@ -55,7 +55,7 @@ export default function Profile() {
           style={AppStyles.headerBg}
         />
 
-        {/* All scrollable content including services goes here */}
+        {/* Main scrollable content */}
         <ScrollView
           style={{ flex: 1, width: '100%' }}
           contentContainerStyle={{ paddingBottom: 130 }}
@@ -93,14 +93,16 @@ export default function Profile() {
             />
           </View>
 
+          {/* Add Services Button - links directly to AddServices.js */}
           <TouchableOpacity
             style={AppStyles.addServicesBtn}
-            onPress={() => setShowServices(!showServices)}
+            onPress={() => navigation.navigate('AddServices')}
           >
             <Text style={AppStyles.addServicesText}>Add Services</Text>
           </TouchableOpacity>
 
-          {showServices && user.services && Array.isArray(user.services) && (
+          {/* Services List is always visible (no toggle button) */}
+          {user.services && Array.isArray(user.services) && (
             <View style={AppStyles.servicesContainer}>
               {user.services.map(service => (
                 <ServiceCard
