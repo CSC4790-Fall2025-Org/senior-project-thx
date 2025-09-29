@@ -56,6 +56,7 @@ npm install react-native-vector-icons
 npx expo install expo-image-picker
 
 npx expo install expo-linear-gradient
+npm install @react-native-async-storage/async-storage
 ```
 
 
