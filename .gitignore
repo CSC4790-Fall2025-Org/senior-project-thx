@@ -40,4 +40,8 @@ yarn-error.*
 /ios
 /android
 
-
+# django
+__pycache__/
+*.pyc
+settings.py
+db.sqlite3
