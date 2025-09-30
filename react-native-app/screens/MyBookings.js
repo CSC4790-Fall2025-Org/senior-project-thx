@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AppStyles, { colors } from '../styles/AppStyles';
@@ -9,7 +9,7 @@ import Feather from 'react-native-vector-icons/Feather';
 const { width, height } = Dimensions.get('window');
 
 // Sample booking data
-const bookingsData = [
+const initialBookingsData = [
   {
     id: '1',
     image: require('../assets/haircuts.jpg'),
@@ -26,6 +26,36 @@ const bookingsData = [
 ];
 
 export default function MyBookings({ navigation }) {
+  const [bookingsData, setBookingsData] = useState(initialBookingsData);
+
+  const handleDeleteBooking = (id) => {
+    // Only show the confirmation ONCE, then remove and show "Deleted" alert
+    Alert.alert(
+      "Delete Booking",
+      "Are you sure you want to delete this booking?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setBookingsData(prev =>
+              prev.filter(booking => booking.id !== id)
+            );
+            // Only show this confirmation after deletion
+            setTimeout(() => {
+              Alert.alert(
+                "Deleted",
+                `Booking ID ${id} was successfully deleted.`,
+                [{ text: "OK" }]
+              );
+            }, 100); // slight delay to avoid alert stacking
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Gradient Header */}
@@ -41,11 +71,15 @@ export default function MyBookings({ navigation }) {
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
         {/* Profile avatar in top right */}
-        <View style={styles.avatarWrapper}>
+        <TouchableOpacity
+          style={styles.avatarWrapper}
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.8}
+        >
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarIcon}>🙂</Text>
           </View>
-        </View>
+        </TouchableOpacity>
       </LinearGradient>
       {/* Main content */}
       <View style={styles.content}>
@@ -60,16 +94,15 @@ export default function MyBookings({ navigation }) {
               stylist={item.stylist}
               date={item.date}
               time={item.time}
-              onEdit={() => navigation.navigate('EditServices', { service: item })}
-              onDelete={() => alert(`Delete booking id ${item.id}`)}
+              onDelete={() => handleDeleteBooking(item.id)}
               onMessage={() => alert(`Message stylist for booking id ${item.id}`)}
+              showDeleteIcon
             />
           )}
           contentContainerStyle={{ paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
         />
       </View>
-
       {/* NAVIGATION BAR */}
       <View style={styles.navBarContainer}>
         <TouchableOpacity onPress={() => navigation.navigate('MyBookings')}>

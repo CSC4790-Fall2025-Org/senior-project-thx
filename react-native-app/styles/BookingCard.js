@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, Modal, Pressable, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, Alert } from 'react-native';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { colors } from './AppStyles';
 import { useNavigation } from '@react-navigation/native';
 
@@ -15,38 +15,14 @@ export default function BookingCard({
   status,
   onDelete,
   onMessage,
-  booking, // pass the full booking object if you want to send it to BookingInfo
+  booking,
+  showDeleteIcon // pass this prop from MyBookings.js to show delete icon instead of menu
 }) {
-  const [modalVisible, setModalVisible] = useState(false);
   const navigation = useNavigation();
 
-  const handleBackgroundPress = () => {
-    setModalVisible(false);
-  };
-
+  // Only do the confirmation prompt ONCE, delegate the deletion and confirmation message to parent
   const handleDelete = () => {
-    setModalVisible(false);
-    Alert.alert(
-      "Delete Booking",
-      "Are you sure you want to delete this booking?",
-      [
-        { text: "No", onPress: () => {}, style: "cancel" },
-        { text: "Yes", onPress: () => { if (onDelete) onDelete(); } }
-      ],
-      { cancelable: true }
-    );
-  };
-
-  const handleOption = (option) => {
-    setModalVisible(false);
-    if (option === 'delete') {
-      handleDelete();
-    }
-    if (option === 'edit') {
-      // Navigate to BookingInfo page with booking data
-      navigation.navigate('BookingInfo', { booking }); 
-    }
-    if (option === 'message' && onMessage) onMessage();
+    if (onDelete) onDelete();
   };
 
   return (
@@ -74,39 +50,24 @@ export default function BookingCard({
         </View>
       </View>
       <View style={styles.menuContainer}>
-        <TouchableOpacity
-          style={styles.menuIcon}
-          onPress={() => setModalVisible(true)}
-        >
-          <Ionicons name="ellipsis-vertical" size={width * 0.04} color={colors.heading} />
-        </TouchableOpacity>
+        {showDeleteIcon ? (
+          <TouchableOpacity
+            style={styles.menuIcon}
+            onPress={handleDelete}
+            accessibilityLabel="Delete Booking"
+          >
+            <Feather name="trash-2" size={width * 0.05} color={colors.gradientEnd} />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.menuIcon}
+            onPress={() => navigation.navigate('BookingInfo', { booking })}
+            accessibilityLabel="More Options"
+          >
+            <Ionicons name="ellipsis-vertical" size={width * 0.04} color={colors.heading} />
+          </TouchableOpacity>
+        )}
       </View>
-      {/* Modal centered, closes when background pressed */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={handleBackgroundPress}
-      >
-        <Pressable style={styles.modalOverlay} onPress={handleBackgroundPress}>
-          <View style={styles.centeredView}>
-            <View style={styles.modalMenu}>
-              <TouchableOpacity style={styles.dropdownItem} onPress={() => handleOption('edit')}>
-                <Text style={styles.dropdownText}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.dropdownItem} onPress={handleOption.bind(null, 'delete')}>
-                <Text style={styles.dropdownText}>Delete</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.dropdownItem} onPress={() => handleOption('message')}>
-                <Text style={styles.dropdownText}>Message</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.dropdownItem} onPress={handleBackgroundPress}>
-                <Text style={[styles.dropdownText, { color: '#888' }]}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -192,42 +153,5 @@ const styles = StyleSheet.create({
   menuIcon: {
     padding: 8,
     zIndex: 1001,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.13)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  centeredView: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    flex: 1,
-  },
-  modalMenu: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    shadowColor: '#000',
-    shadowOpacity: 0.13,
-    shadowRadius: 8,
-    elevation: 14,
-    minWidth: 160,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    zIndex: 1003,
-    borderWidth: 1,
-    borderColor: '#eee',
-    alignItems: 'center',
-  },
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    width: '100%',
-    alignItems: 'center',
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: colors.heading,
-    fontWeight: '600',
   },
 });
