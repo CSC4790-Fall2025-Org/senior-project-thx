@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-*d2g4y15v1c#rf1^c+-^ao=^m=2ft1*l&=xxs+dy1hp+o*(mzd
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -47,11 +47,16 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    
     # Third-party
     "rest_framework",
     "corsheaders",
-    # Local
+    "rest_framework_simplejwt",
+    
+    # Local apps
     "core",
+    "core.authentication",
+    
 ]
 
 # MIDDLEWARE = [
@@ -104,6 +109,7 @@ DATABASES = {
     }
 }
 
+AUTH_USER_MODEL = 'core.User'
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -149,6 +155,9 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
 }
 
 # Default primary key field type

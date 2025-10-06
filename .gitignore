@@ -45,3 +45,7 @@ __pycache__/
 *.pyc
 settings.py
 db.sqlite3
+
+react-native-app/config.js
+package-lock.json
+package.json

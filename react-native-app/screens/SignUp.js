@@ -1,12 +1,38 @@
-import { StyleSheet, Text, View, TouchableOpacity, Image, Dimensions,TextInput, KeyboardAvoidingView } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Image, Dimensions,TextInput, KeyboardAvoidingView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-
+import { BASE_URL } from '../config';
 
 const { height } = Dimensions.get('window');
 
 
 
 const SignUp = ({navigation}) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleSignUp = async () => {
+        console.log('Sign Up Pressed')
+        try {
+            const response = await fetch(`${BASE_URL}:8000/api/auth/register/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password }), 
+            });
+
+            if (response.ok) {
+                Alert.alert('Success', 'Account created successfully!');
+                navigation.navigate('Login');
+            } else {
+                const errorData = await response.json();
+                Alert.alert('Sign Up Failed', JSON.stringify(errorData));
+            }
+        } catch (error) {
+        Alert.alert('Error', error.message);
+        }
+    };
     return (
         <KeyboardAvoidingView style = {styles.container}>
 
@@ -29,14 +55,26 @@ const SignUp = ({navigation}) => {
                     {/*EMAIL & PASS CONTENT*/}
                     <View style={styles.emailBox}>
                         <Text style = {styles.emailText}>Email Address</Text>
-                        <TextInput style={styles.emailInput}/>
+                        <TextInput 
+                            style={styles.emailInput}
+                            value ={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                        />
                     </View>
                     <View style={styles.passBox}>
                     <Text style = {styles.passText}>Password</Text>
-                        <TextInput style={styles.passInput} secureTextEntry={true}/>
+                        <TextInput 
+                            style={styles.passInput} 
+                            // secureTextEntry={true}
+                            value ={password}
+                            onChangeText={setPassword}
+                        />
                     </View>
 
-                    <TouchableOpacity style = {styles.signUpButton} onPress={() => navigation.navigate('Home')}>
+                    <TouchableOpacity style = {styles.signUpButton} onPress={handleSignUp}>
                         <Text style = {styles.signUpText}>Sign Up</Text>
                     </TouchableOpacity>
 
