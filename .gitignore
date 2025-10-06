@@ -47,5 +47,6 @@ settings.py
 db.sqlite3
 
 react-native-app/config.js
-package-lock.json
-package.json
+
+react-native-app/package.json
+react-native-app/package-lock.json
