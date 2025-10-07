@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-*d2g4y15v1c#rf1^c+-^ao=^m=2ft1*l&=xxs+dy1hp+o*(mzd
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"] # add your ip when ipconfig getifaddr en0
 
 
 # Application definition
@@ -104,6 +104,7 @@ DATABASES = {
     }
 }
 
+AUTH_USER_MODEL = "core.User"
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -147,8 +148,32 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_ROOT = BASE_DIR / "media"
 
+# CORS_ALLOW_CREDENTIALS = True
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:19006",  # Expo web (if you try web)
+#     "http://127.0.0.1:19006",
+#     "http://localhost:8081",   # Metro
+#     "http://127.0.0.1:8081",
+#     "http://192.168.X.Y:19000",  # your machine's LAN IP + Expo port (see step 3)
+# ]
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+# REST_FRAMEWORK = {
+#     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+#     "DEFAULT_AUTHENTICATION_CLASSES": [
+#         "rest_framework_simplejwt.authentication.JWTAuthentication",
+#         "rest_framework.authentication.SessionAuthentication",  # optional for admin
+#     ],
+# }
+
+# REST_FRAMEWORK = {
+#     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+# }
+
 REST_FRAMEWORK = {
-    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    "DEFAULT_AUTHENTICATION_CLASSES": [],  # no Session/JWT
 }
 
 # Default primary key field type
