@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,93 +9,180 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Alert,
+  ActivityIndicator,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Calendar } from "react-native-calendars";
+import { api } from "../src/api";
 
-// ---- Example fallback ----
-const EXAMPLE_SERVICE = {
-  service_id: "1",
-  name: "Nails",
-  providerName: "Allyssa Panganiban",
-  suggestedLocation: "Klekotka Hall",
-  availability: {
-    "2025-10-01": [
-      { start: "2025-10-01T10:00:00.000Z", end: "2025-10-01T11:00:00.000Z" },
-      { start: "2025-10-01T11:00:00.000Z", end: "2025-10-01T12:00:00.000Z" },
-    ],
-    "2025-10-02": [
-      { start: "2025-10-02T14:00:00.000Z", end: "2025-10-02T15:00:00.000Z" },
-    ],
-  },
+const DEMO_HEADERS = {};
+
+const toTimeLabel = (hhmmss) => {
+  try {
+    const [h, m] = (hhmmss || "").split(":").map(Number);
+    const d = new Date();
+    d.setHours(h || 0, m || 0, 0, 0);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return hhmmss || "";
+  }
 };
-
-const toTimeLabel = (iso) =>
-  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
 const firstDateKey = (obj) => Object.keys(obj || {})[0];
 
 export default function BookingInfo({ navigation, route }) {
-  const service = route?.params?.service ?? EXAMPLE_SERVICE;
+  // Expect: { serviceId, serviceName, price } — slots will be fetched fresh
+  const { serviceId } = route?.params || {};
+  const routeName = route?.params?.serviceName;
+  const routePrice = route?.params?.price;
 
-  // Client fields
-  const [name, setName] = useState(route?.params?.prefill?.name ?? "");
-  const [location, setLocation] = useState(route?.params?.prefill?.location ?? "");
-  const [email, setEmail] = useState(route?.params?.prefill?.email ?? "");
+  // Live data from API
+  const [serviceName, setServiceName] = useState(routeName || "");
+  const [price, setPrice] = useState(routePrice);
+  const [slots, setSlots] = useState([]); // [{id,date,start_time,end_time}]
+  const [loadingSlots, setLoadingSlots] = useState(true);
+  const [slotsError, setSlotsError] = useState("");
 
-  // Calendar + time selection
-  const initialDate = firstDateKey(service.availability) || new Date().toISOString().slice(0, 10);
-  const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
+  // Form state (blank by default)
+  const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
+  const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Build date -> [{id,start_time,end_time}]
+  const availabilityMap = useMemo(() => {
+    const map = {};
+    (Array.isArray(slots) ? slots : []).forEach((s) => {
+      if (!map[s.date]) map[s.date] = [];
+      map[s.date].push({ id: s.id, start_time: s.start_time, end_time: s.end_time });
+    });
+    Object.keys(map).forEach((d) => {
+      map[d].sort((a, b) => (a.start_time > b.start_time ? 1 : -1));
+    });
+    return map;
+  }, [slots]);
+
+  // Calendar & chip state
+  const [selectedDate, setSelectedDate] = useState(firstDateKey(availabilityMap) || new Date().toISOString().slice(0, 10));
+  const [selectedSlotId, setSelectedSlotId] = useState(null);
+
+  // If slots change and current date is no longer present, reset selection to first available
+  useEffect(() => {
+    const firstDate = firstDateKey(availabilityMap);
+    if (!availabilityMap[selectedDate]) {
+      setSelectedDate(firstDate || new Date().toISOString().slice(0, 10));
+      setSelectedSlotId(null);
+    } else {
+      // also clear slot if that specific slot no longer exists
+      if (selectedSlotId) {
+        const stillThere = (availabilityMap[selectedDate] || []).some((s) => s.id === selectedSlotId);
+        if (!stillThere) setSelectedSlotId(null);
+      }
+    }
+  }, [availabilityMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const markedDates = useMemo(() => {
     const marks = { [selectedDate]: { selected: true, selectedColor: "#FFD9E1" } };
-    Object.keys(service.availability || {}).forEach((d) => {
+    Object.keys(availabilityMap).forEach((d) => {
       if (!marks[d]) marks[d] = { marked: true, dotColor: "#ff6b8a" };
       else marks[d] = { ...marks[d], marked: true, dotColor: "#ff6b8a" };
     });
     return marks;
-  }, [selectedDate, service.availability]);
+  }, [selectedDate, availabilityMap]);
 
-  const daySlots = service.availability?.[selectedDate] ?? [];
+  const daySlots = availabilityMap[selectedDate] || [];
+
+  // Fetch latest service details (incl. filtered availabilities) from API
+  const fetchSlots = useCallback(async () => {
+    if (!serviceId) return;
+    try {
+      setSlotsError("");
+      setLoadingSlots(true);
+      const data = await api(`/services/${serviceId}/`, { headers: { ...DEMO_HEADERS } });
+      // Expect data.availabilities already excludes booked slots per backend
+      setSlots(Array.isArray(data?.availabilities) ? data.availabilities : []);
+      if (!routeName && data?.name) setServiceName(data.name);
+      if (routePrice == null && data?.price != null) setPrice(data.price);
+    } catch (e) {
+      setSlotsError(e?.message?.toString() || "Failed to load slots.");
+      setSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [serviceId, routeName, routePrice]);
+
+  // Refresh on screen focus and on first mount
+  useFocusEffect(
+    useCallback(() => {
+      fetchSlots();
+    }, [fetchSlots])
+  );
 
   const onPickDate = (d) => {
     setSelectedDate(d.dateString);
-    setSelectedSlotIndex(null);
+    setSelectedSlotId(null);
   };
 
-  const onSave = () => {
+  const onSave = async () => {
+    if (!serviceId) return Alert.alert("Missing service", "Service is not specified.");
     if (!name.trim()) return Alert.alert("Missing info", "Please enter your name.");
     if (!email.trim()) return Alert.alert("Missing info", "Please enter your email.");
-    if (selectedSlotIndex == null || !daySlots[selectedSlotIndex]) {
-      return Alert.alert("Select a time", "Please choose an appointment time.");
-    }
-    const { start, end } = daySlots[selectedSlotIndex];
+    if (!selectedSlotId) return Alert.alert("Select a time", "Please choose an appointment time.");
 
     const payload = {
-      service_id: service.service_id,
-      service_name: service.name,
-      client: { name, email },
+      service: serviceId,
+      time: selectedSlotId, // Availability.id
       location,
-      appointment: {
-        date: selectedDate,
-        start_iso: start,
-        end_iso: end,
-      },
+      customer_name: name,
+      customer_email: email,
     };
 
-    console.log("Booking payload:\n", JSON.stringify(payload, null, 2));
-    Alert.alert("Booked", "Your appointment request has been submitted.");
+    try {
+      setSubmitting(true);
+      const res = await api("/bookings/", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { ...DEMO_HEADERS },
+      });
+      // After booking, refetch in case user stays here
+      await fetchSlots();
+      Alert.alert("Booked!", "Your appointment has been created.", [
+        { text: "OK", onPress: () => navigation.goBack() },
+      ]);
+      // console.log("Booking created:", res);
+    } catch (e) {
+      Alert.alert("Booking failed", e?.message?.toString() || "Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  // Guard if route missing id
+  if (!serviceId) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={[styles.flex, { alignItems: "center", justifyContent: "center", padding: 16 }]}>
+          <Text>Missing service details. Please go back and try again.</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 12 }}>
+            <Text style={{ color: "#ED7678" }}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={8}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation?.goBack?.()}>
+          <TouchableOpacity 
+            onPress={() => navigation?.goBack?.()}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{ zIndex: 2, elevation: 2 }}
+          >
             <Text style={styles.backText}>‹ Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Book Appointment</Text>
+          <Text style={styles.title} pointerEvents="none">Book Appointment</Text>
           <View style={{ width: 48 }} />
         </View>
 
@@ -104,6 +191,12 @@ export default function BookingInfo({ navigation, route }) {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Service summary */}
+          <Text style={styles.serviceName}>{serviceName || "Service"}</Text>
+          {Number.isFinite(Number(price)) && (
+            <Text style={styles.price}>${Number(price).toFixed(2)}</Text>
+          )}
+
           {/* Name */}
           <Text style={styles.label}>Name</Text>
           <TextInput
@@ -136,51 +229,73 @@ export default function BookingInfo({ navigation, route }) {
 
           {/* Appointment Slot */}
           <Text style={styles.label}>Appointment Slot</Text>
-          <View style={styles.calendarWrap}>
-            <Calendar
-              current={selectedDate}
-              onDayPress={onPickDate}
-              markedDates={markedDates}
-              theme={{
-                textSectionTitleColor: "#9CA3AF",
-                selectedDayBackgroundColor: "#FFD9E1",
-                selectedDayTextColor: "#111827",
-                todayTextColor: "#ff6b8a",
-                arrowColor: "#ff6b8a",
-              }}
-              style={styles.calendar}
-            />
-          </View>
 
-          {/* Time chips */}
-          {daySlots.length > 0 ? (
-            <View style={styles.timeListCard}>
-              <View style={styles.chipsRow}>
-                {daySlots.map((slot, idx) => {
-                  const selected = idx === selectedSlotIndex;
-                  return (
-                    <TouchableOpacity
-                      key={`${slot.start}-${idx}`}
-                      style={[styles.timeChip, selected && styles.timeChipSelected]}
-                      onPress={() => setSelectedSlotIndex(idx)}
-                      activeOpacity={0.9}
-                    >
-                      <Text style={[styles.timeChipText, selected && styles.timeChipTextSelected]}>
-                        {toTimeLabel(slot.start)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+          {loadingSlots ? (
+            <View style={{ paddingVertical: 20, alignItems: "center" }}>
+              <ActivityIndicator size="large" />
+              <Text style={{ marginTop: 8, color: "#6B7280" }}>Loading available times…</Text>
+            </View>
+          ) : slotsError ? (
+            <View style={{ paddingVertical: 12 }}>
+              <Text style={{ color: "crimson" }}>{slotsError}</Text>
+              <TouchableOpacity onPress={fetchSlots} style={{ marginTop: 8 }}>
+                <Text style={{ color: "#ED7678" }}>Retry</Text>
+              </TouchableOpacity>
             </View>
           ) : (
-            <Text style={styles.noTimes}>No times available for this date.</Text>
+            <>
+              <View style={styles.calendarWrap}>
+                <Calendar
+                  current={selectedDate}
+                  onDayPress={onPickDate}
+                  markedDates={markedDates}
+                  theme={{
+                    textSectionTitleColor: "#9CA3AF",
+                    selectedDayBackgroundColor: "#FFD9E1",
+                    selectedDayTextColor: "#111827",
+                    todayTextColor: "#ff6b8a",
+                    arrowColor: "#ff6b8a",
+                  }}
+                  style={styles.calendar}
+                />
+              </View>
+
+              {/* Time chips */}
+              {daySlots.length > 0 ? (
+                <View style={styles.timeListCard}>
+                  <View style={styles.chipsRow}>
+                    {daySlots.map((slot) => {
+                      const selected = selectedSlotId === slot.id;
+                      return (
+                        <TouchableOpacity
+                          key={slot.id}
+                          style={[styles.timeChip, selected && styles.timeChipSelected]}
+                          onPress={() => setSelectedSlotId(slot.id)}
+                          activeOpacity={0.9}
+                        >
+                          <Text style={[styles.timeChipText, selected && styles.timeChipTextSelected]}>
+                            {toTimeLabel(slot.start_time)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.noTimes}>No times available for this date.</Text>
+              )}
+            </>
           )}
 
           {/* Save */}
           <View style={{ height: 16 }} />
-          <TouchableOpacity onPress={onSave} style={styles.saveBtn} activeOpacity={0.9}>
-            <Text style={styles.saveText}>Save</Text>
+          <TouchableOpacity
+            onPress={onSave}
+            style={[styles.saveBtn, (submitting || loadingSlots) && { opacity: 0.7 }]}
+            activeOpacity={0.9}
+            disabled={submitting || loadingSlots}
+          >
+            <Text style={styles.saveText}>{submitting ? "Saving..." : "Save"}</Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />
@@ -217,6 +332,9 @@ const styles = StyleSheet.create({
   },
 
   content: { padding: 16, paddingBottom: 24, flexGrow: 1 },
+
+  serviceName: { fontSize: 18, fontWeight: "700", color: "#111827" },
+  price: { marginTop: 2, marginBottom: 8, color: "#6B7280" },
 
   label: { marginTop: 12, marginBottom: 6, color: "#6B7280", fontSize: 13 },
   input: {
@@ -261,16 +379,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: "center",
   },
-  timeChipSelected: {
-    backgroundColor: "#60A5FA",
-  },
-  timeChipText: {
-    color: "#2563EB",
-    fontWeight: "600",
-  },
-  timeChipTextSelected: {
-    color: "#fff",
-  },
+  timeChipSelected: { backgroundColor: "#60A5FA" },
+  timeChipText: { color: "#2563EB", fontWeight: "600" },
+  timeChipTextSelected: { color: "#fff" },
 
   noTimes: { marginTop: 10, color: "#6B7280" },
 

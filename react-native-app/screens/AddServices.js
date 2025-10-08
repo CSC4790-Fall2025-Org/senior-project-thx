@@ -18,6 +18,8 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import Icon from "react-native-vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
 
+import { api } from "../src/api";
+
 const TAG_OPTIONS = ["Haircuts", "Nails", "Makeup", "Tutoring", "Cooking", "Cleaning"];
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const toTimeLabel = (d) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -41,6 +43,8 @@ export default function AddServices({ navigation }) {
   const [price, setPrice] = useState("");
   const [tag, setTag] = useState("");
   const [imageUri, setImageUri] = useState(null);
+  const [imageLocal, setImageLocal] = useState(null);
+
 
   // Tag picker modal
   const [tagPickerVisible, setTagPickerVisible] = useState(false);
@@ -114,33 +118,91 @@ export default function AddServices({ navigation }) {
   };
 
   // Expo image picker (unchanged styles; only this function uses Expo)
+  // const pickImage = async () => {
+  //   const result = await ImagePicker.launchImageLibraryAsync({
+  //     mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  //     allowsEditing: true,
+  //     quality: 0.8,
+  //   });
+
+  //   if (!result.canceled) {
+  //     setImageUri(result.assets[0].uri);
+  //   }
+  // };
+
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
+  await pickImageAndPersist((uri) => {
+    setImageUri(uri);
+    setImageLocal(uri); // if you use imageLocal elsewhere
+  }, "addServiceImage");
+};
 
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-    }
-  };
+  // const onSave = () => {
+  //   // 🔐 Save appointment times as ISO timestamps
+  //   const availability = serializeAvailabilityISO(slotsByDate);
+  //   const payload = { service, description, price, tag, imageUri, availability };
 
-  const onSave = () => {
-    // 🔐 Save appointment times as ISO timestamps
+  //   console.log("Saving:\n", JSON.stringify(payload, null, 2));
+  //   Alert.alert("Saved", "Service details saved!");
+  //   // TODO: POST `payload` to your backend
+  // };
+
+  const onSave = async () => {
+  try {
     const availability = serializeAvailabilityISO(slotsByDate);
-    const payload = { service, description, price, tag, imageUri, availability };
 
-    console.log("Saving:\n", JSON.stringify(payload, null, 2));
-    Alert.alert("Saved", "Service details saved!");
-    // TODO: POST `payload` to your backend
-  };
+    // choose multipart when there is an image, otherwise JSON
+    if (imageUri) {
+      const fd = new FormData();
+      fd.append("name", service);
+      fd.append("description", description);
+      fd.append("price", String(price || 0));
+      fd.append("type", tag);
+      fd.append("image", {
+        uri: imageUri,
+        name: "service.jpg",
+        type: "image/jpeg",
+      });
+      // backend accepts availability map; stringify in multipart
+      fd.append("availability", JSON.stringify(availability));
+
+      await api("/services/", { method: "POST", body: fd });
+    } else {
+      await api("/services/", {
+        method: "POST",
+        body: JSON.stringify({
+          name: service,
+          description,
+          price,
+          type: tag,
+          availability, // object shape OK for JSON
+        }),
+      });
+    }
+
+    Alert.alert("Saved", "Service created!");
+    // go back — your Profile screen should refetch on focus
+    navigation?.goBack?.();
+  } catch (e) {
+    Alert.alert("Error", String(e.message || e));
+  }
+};
 
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={8}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation?.goBack?.()}>
+        <TouchableOpacity
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.reset({ index: 0, routes: [{ name: "Profile", params: { refresh: true } }] });
+              }
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ zIndex: 2 }}  // keep it above anything else
+          >
             <Text style={styles.backText}>‹ Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Add Services</Text>

@@ -18,38 +18,7 @@ import { Calendar } from "react-native-calendars";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Icon from "react-native-vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
-
-// ---- Example data (prefill) ----
-const EXAMPLE = {
-  id: "2",
-  name: "Allyssa Panganiban",
-  location: "Klekotka Hall",
-  services: [
-    {
-      service_id: "1",
-      name: "Nails",
-      description:
-        "Professional nail care including shaping, cuticle treatment, and polish for a clean, polished look.",
-      price: 50.0,
-      tag: "Nails",
-      availability: {
-        "2025-09-18": [
-          {
-            start: "2025-09-18T14:00:00.000Z",
-            end: "2025-09-18T15:00:00.000Z",
-          },
-        ],
-        "2025-09-25": [
-          {
-            start: "2025-09-18T14:00:00.000Z",
-            end: "2025-09-18T15:00:00.000Z",
-          },
-        ],
-      },
-      image: require("../assets/nails.jpg"),
-    },
-  ],
-};
+import { api } from "../src/api";
 
 const TAG_OPTIONS = [
   "Haircuts",
@@ -91,40 +60,73 @@ const serializeAvailabilityISO = (slotsByDate) =>
   );
 
 export default function EditServices({ navigation, route }) {
-  const initial = route?.params?.service ?? EXAMPLE.services[0];
+  const params = route?.params || {};
+  const serviceId = params.serviceId ?? params.service_id; // supports either
+  console.log("EditServices route params:", params, "→ serviceId:", serviceId);
 
-  const [service, setService] = useState(initial?.name ?? "");
-  const [description, setDescription] = useState(initial?.description ?? "");
-  const [price, setPrice] = useState(
-    initial?.price != null ? String(initial.price) : ""
-  );
-  const [tag, setTag] = useState(
-    initial?.tag && TAG_OPTIONS.includes(initial.tag)
-      ? initial.tag
-      : initial?.tag ?? ""
-  );
+  const [loading, setLoading] = useState(false);
 
-  const [imageUri, setImageUri] = useState(null);
-  const [imageLocal, setImageLocal] = useState(
-    typeof initial?.image === "number" ? initial.image : null
-  );
+  const [service, setService] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [tag, setTag] = useState("");
+
+  const [imageUri, setImageUri] = useState(null);   // picked locally
+  const [serverImage, setServerImage] = useState(null); // URL from backend
+  const [imageLocal, setImageLocal] = useState(null); // fixes your ReferenceError
 
   const [tagPickerVisible, setTagPickerVisible] = useState(false);
-
   const [selectedDate, setSelectedDate] = useState(todayISO());
-  const [slotsByDate, setSlotsByDate] = useState(
-    parseAvailability(initial?.availability)
-  );
+  const [slotsByDate, setSlotsByDate] = useState({});
 
   const [timeModalVisible, setTimeModalVisible] = useState(false);
   const [timeEditing, setTimeEditing] = useState(null); // { dateKey, id, field }
   const [tempTime, setTempTime] = useState(new Date());
 
+  // Put above the component
+  const listAvailToSlotsMap = (list) => {
+    if (!Array.isArray(list)) return {};
+    const out = {};
+    list.forEach((a) => {
+      const date = a.date; // "YYYY-MM-DD"
+      // combine date + time strings into JS Dates
+      const start = new Date(`${a.date}T${a.start_time}`);
+      const end   = new Date(`${a.date}T${a.end_time}`);
+      (out[date] = out[date] || []).push({
+        id: String(a.id ?? Math.random().toString(36).slice(2)),
+        start,
+        end,
+      });
+    });
+    return out;
+  };
+
+  // Load the existing service from backend
   useEffect(() => {
-    if (initial?.tag && !TAG_OPTIONS.includes(initial.tag)) {
-      TAG_OPTIONS.push(initial.tag);
-    }
-  }, [initial?.tag]);
+    const load = async () => {
+      if (!serviceId) return;
+      try {
+        console.log("Starting API call for service", serviceId);
+        setLoading(true);
+
+        const s = await api(`/services/${serviceId}/`);
+        console.log("SERVICES /id:", s);
+
+        setService(s.name || "");
+        setDescription(s.description || "");
+        setPrice(String(s.price ?? ""));
+        setTag(s.type || "");
+        setServerImage(s.image || null);
+        // setSlotsByDate(parseAvailability(s.availabilities_map || s.availabilities || s.availability)); 
+        setSlotsByDate(listAvailToSlotsMap(s.availabilities));
+      } catch (e) {
+        Alert.alert("Error", String(e.message || e));
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [serviceId]);
 
   const markedDates = useMemo(() => {
     const marks = {
@@ -194,39 +196,79 @@ export default function EditServices({ navigation, route }) {
     closeTimeModal();
   };
 
+  // const pickImage = async () => {
+  //   const result = await ImagePicker.launchImageLibraryAsync({
+  //     mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  //     allowsEditing: true,
+  //     quality: 0.8,
+  //   });
+  //   if (!result.canceled) {
+  //     setImageUri(result.assets[0].uri);
+  //     // setImageLocal(null);
+  //     setServerImage(null);
+  //   }
+  // };
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-      setImageLocal(null);
+  await pickImageAndPersist((uri) => {
+    setImageUri(uri);
+    setImageLocal(uri);
+  }, `editServiceImage:${serviceId}`);
+};
+
+
+  // const onSave = () => {
+  //   const availability = serializeAvailabilityISO(slotsByDate);
+
+  //   const payload = {
+  //     id: EXAMPLE.id,
+  //     owner_name: EXAMPLE.name,
+  //     location: EXAMPLE.location,
+  //     service: {
+  //       service_id: initial?.service_id ?? "1",
+  //       name: service,
+  //       description,
+  //       price: Number(price),
+  //       tag,
+  //       image: imageUri || imageLocal,
+  //       availability,
+  //     },
+  //   };
+
+  //   console.log("Saving (Edit):\n", JSON.stringify(payload, null, 2));
+  //   Alert.alert("Saved", "Service updated successfully!");
+  //   // TODO: PUT/PATCH to your backend
+  // };
+  const onSave = async () => {
+    try {
+      const availability = serializeAvailabilityISO(slotsByDate);
+
+      if (imageUri) {
+        const fd = new FormData();
+        fd.append("name", service);
+        fd.append("description", description);
+        fd.append("price", String(price || 0));
+        fd.append("type", tag);
+        fd.append("image", { uri: imageUri, name: "service.jpg", type: "image/jpeg" });
+        fd.append("availability", JSON.stringify(availability));
+        await api(`/services/${serviceId}/`, { method: "PATCH", body: fd });
+      } else {
+        await api(`/services/${serviceId}/`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: service,
+            description,
+            price,
+            type: tag,
+            availability,
+          }),
+        });
+      }
+
+      Alert.alert("Saved", "Service updated successfully!");
+      navigation?.goBack?.();
+    } catch (e) {
+      Alert.alert("Error", String(e.message || e));
     }
-  };
-
-  const onSave = () => {
-    const availability = serializeAvailabilityISO(slotsByDate);
-
-    const payload = {
-      id: EXAMPLE.id,
-      owner_name: EXAMPLE.name,
-      location: EXAMPLE.location,
-      service: {
-        service_id: initial?.service_id ?? "1",
-        name: service,
-        description,
-        price: Number(price),
-        tag,
-        image: imageUri || imageLocal,
-        availability,
-      },
-    };
-
-    console.log("Saving (Edit):\n", JSON.stringify(payload, null, 2));
-    Alert.alert("Saved", "Service updated successfully!");
-    // TODO: PUT/PATCH to your backend
   };
 
   return (
@@ -237,7 +279,17 @@ export default function EditServices({ navigation, route }) {
         keyboardVerticalOffset={height * 0.01}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation?.goBack?.()}>
+          <TouchableOpacity
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.reset({ index: 0, routes: [{ name: "Profile", params: { refresh: true } }] });
+              }
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ zIndex: 2 }}  // keep it above anything else
+          >
             <Text style={styles.backText}>‹ Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Edit Services</Text>
