@@ -1,29 +1,23 @@
 from rest_framework.views import APIView
-from rest_framework import viewsets
+from rest_framework import viewsets, status, mixins
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
-from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
-from django.utils.dateparse import parse_datetime
 
+from .models import Service, Availability, Booking, ServiceImage
+from .serializers import (
+    UserMeSerializer,
+    ServiceSerializer,
+    BookingSerializer,
+    ServiceImageSerializer,
+    get_active_demo_user,
+)
 
-from .models import Service, Availability, Booking
-from .serializers import UserMeSerializer, ServiceSerializer, BookingSerializer, get_active_demo_user
+User = get_user_model()
 
-# DEMO USER
-# User = get_user_model()
-
-# def get_demo_user(): 
-#     # create demo user
-#     demo, _ = User.objects.get_or_create(
-#         email = 'mdang01@villanova.edu',
-#         defaults = {'username': 'mdang', 
-#                     'name': 'Mya',
-#                     'location': 'Friar Hall'}
-#     )
-#     return demo
 
 def resolve_request_user(request):
     """
@@ -43,8 +37,8 @@ def resolve_request_user(request):
         except User.DoesNotExist:
             pass
 
-    # use the single source of truth
     return get_active_demo_user(request)
+
 
 class ProfileMeView(APIView):
     """
@@ -52,43 +46,29 @@ class ProfileMeView(APIView):
     PATCH /api/profile/me/   -> update demo profile fields
     """
     def get(self, request):
-        user = get_active_demo_user()
+        user = get_active_demo_user(request)
         ser = UserMeSerializer(user, context={"request": request})
         return Response(ser.data)
 
     def patch(self, request):
-        user = get_active_demo_user()
+        user = get_active_demo_user(request)
         ser = UserMeSerializer(user, data=request.data, partial=True, context={"request": request})
         ser.is_valid(raise_exception=True)
         ser.save()
         return Response(ser.data, status=status.HTTP_200_OK)
 
-# class ProfileMeView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request):
-#         serializer = UserMeSerializer(request.user, context={"request": request})
-#         return Response(serializer.data)
-
-#     def patch(self, request):
-#         serializer = UserMeSerializer(
-#             request.user, data=request.data, partial=True, context={"request": request}
-#         )
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 class ServiceViewSet(viewsets.ModelViewSet):
     """
     GET    /api/services/?tag=Beauty&name=hair
-    POST   /api/services/
+    POST   /api/services/          (supports multipart/form-data with repeated 'images' files)
     GET    /api/services/{id}/
-    PATCH  /api/services/{id}/
+    PATCH  /api/services/{id}/     (supports multipart/form-data to append new images)
     DELETE /api/services/{id}/
     """
     serializer_class = ServiceSerializer
     lookup_field = "id"
+    parser_classes = (MultiPartParser, FormParser)  # enable multipart parsing for uploads
 
     def get_queryset(self):
         qs = Service.objects.all().order_by("-id")  # newest first
@@ -96,22 +76,89 @@ class ServiceViewSet(viewsets.ModelViewSet):
         name = (self.request.query_params.get("name") or "").strip()
 
         if tag:
-            qs = qs.filter(type__iexact=tag)          # exact value match
+            qs = qs.filter(type__iexact=tag)
         if name:
-            qs = qs.filter(name__icontains=name)      # partial, case-insensitive
+            qs = qs.filter(name__icontains=name)
 
         return qs
-    
+
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
-        ctx["request"] = self.request  # ensures get_availabilities sees the query params
+        ctx["request"] = self.request
         return ctx
 
-    def perform_create(self, serializer):
-        # DRF already injects request into serializer.context,
-        # so no need to pass it here.
+    def perform_image_save(self, service, files):
+        """
+        Persist ServiceImage objects for uploaded files (files is an iterable of UploadedFile).
+        Returns list of ServiceImage instances created.
+        """
+        created = []
+        for f in files:
+            img = ServiceImage.objects.create(service=service, image=f)
+            created.append(img)
+        return created
+
+    def create(self, request, *args, **kwargs):
+        """
+        Handle POST /api/services/
+        Accepts JSON or multipart/form-data. If 'images' files are included, store them.
+        """
+        data = request.data.copy()
+
+        # resolve the user from auth/header/demo
+        user = resolve_request_user(request)
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+
+        # Save service with the user attached (prevents NOT NULL constraint failure)
+        service = serializer.save(user=user)
+
+        files = request.FILES.getlist("images")
+        if files:
+            self.perform_image_save(service, files)
+
+        out = ServiceSerializer(service, context={"request": request})
+        headers = self.get_success_headers(serializer.data)
+        return Response(out.data, status=status.HTTP_201_CREATED, headers=headers)
+        
+
+    def partial_update(self, request, *args, **kwargs):
+        """
+        Handle PATCH /api/services/{id}/
+        Accepts JSON or multipart/form-data. If 'images' files are included, append them.
+        """
+        partial = kwargs.pop("partial", True)
+        instance = self.get_object()
+        data = request.data.copy()
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
         serializer.save()
-        # serializer.save(context={"request": self.request})
+
+        files = request.FILES.getlist("images")
+        if files:
+            self.perform_image_save(instance, files)
+
+        out = ServiceSerializer(instance, context={"request": request}).data
+        return Response(out)
+
+
+class ServiceImageViewSet(mixins.DestroyModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    """
+    DELETE /api/service-images/{id}/ -> deletes DB row and file from storage
+    GET /api/service-images/{id}/ -> info about single image
+    """
+    queryset = ServiceImage.objects.all().order_by("-created_at")
+    serializer_class = ServiceImageSerializer
+    # Add permission checks here if required (ownership, authentication)
+
+    def perform_destroy(self, instance):
+        # delete file from storage first
+        try:
+            instance.image.delete(save=False)
+        except Exception:
+            pass
+        instance.delete()
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -144,14 +191,8 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking = Booking.objects.create(user=user, **serializer.validated_data)
         out = self.get_serializer(booking)
         return Response(out.data, status=status.HTTP_201_CREATED)
-    
+
     def destroy(self, request, *args, **kwargs):
-        """
-        DELETE /api/bookings/{id}/
-        Only deletes the current user's booking. After deletion, the slot is free
-        because no Booking row points to that Availability anymore (your unique
-        constraint on Booking.time will allow a new booking to be created).
-        """
         instance = self.get_object()  # respects get_queryset scoping to current user
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

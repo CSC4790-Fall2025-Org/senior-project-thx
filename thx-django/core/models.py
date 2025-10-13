@@ -62,3 +62,11 @@ class Booking(models.Model):
             return f"{self.service.name} on {self.time.date}"
         except Exception:
             return f"Booking {self.pk}"
+
+class ServiceImage(models.Model):
+    service = models.ForeignKey(Service, related_name="images", on_delete=models.CASCADE)
+    image = models.ImageField(upload_to="services/")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Image for {self.service_id} ({self.id})"

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Service, Availability, Booking
+from .models import Service, Availability, Booking, ServiceImage
 from django.utils.dateparse import parse_datetime
 
 # DEMO USER
@@ -172,3 +172,30 @@ class UserMeSerializer(serializers.ModelSerializer):
         model = User
         fields = ["id", "name", "email", "location", "profile_picture", "services", "bookings"]
         read_only_fields = ["email"]
+
+class ServiceImageSerializer(serializers.ModelSerializer):
+    # return full URL when possible
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ServiceImage
+        fields = ("id", "url", "created_at")
+
+    def get_url(self, obj):
+        return obj.image.url
+
+class ServiceSerializer(serializers.ModelSerializer):
+    images = ServiceImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Service
+        fields = (
+            "id",
+            "name",
+            "description",
+            "price",
+            "type",
+            "availabilities",
+            "images",  # read-only nested list of saved images
+            # include your other fields as needed
+        )

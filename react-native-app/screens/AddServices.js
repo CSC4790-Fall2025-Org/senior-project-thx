@@ -16,8 +16,8 @@ import {
 import { Calendar } from "react-native-calendars";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Icon from "react-native-vector-icons/Ionicons";
-import * as ImagePicker from "expo-image-picker";
 
+import ImageGalleryPicker from "../components/ImageGalleryPicker";
 import { api } from "../src/api";
 
 const TAG_OPTIONS = ["Haircuts", "Nails", "Makeup", "Tutoring", "Cooking", "Cleaning"];
@@ -37,23 +37,16 @@ const serializeAvailabilityISO = (slotsByDate) =>
   );
 
 export default function AddServices({ navigation }) {
-  // Editable fields (About -> Description)
   const [service, setService] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [tag, setTag] = useState("");
-  const [imageUri, setImageUri] = useState(null);
-  const [imageLocal, setImageLocal] = useState(null);
+  const [images, setImages] = useState([]); // array of {uri}
 
-
-  // Tag picker modal
   const [tagPickerVisible, setTagPickerVisible] = useState(false);
-
-  // Calendar + slots
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [slotsByDate, setSlotsByDate] = useState({});
 
-  // Time picker modal (always closable)
   const [timeModalVisible, setTimeModalVisible] = useState(false);
   const [timeEditing, setTimeEditing] = useState(null); // { dateKey, id, field }
   const [tempTime, setTempTime] = useState(new Date());
@@ -117,82 +110,53 @@ export default function AddServices({ navigation }) {
     closeTimeModal();
   };
 
-  // Expo image picker (unchanged styles; only this function uses Expo)
-  // const pickImage = async () => {
-  //   const result = await ImagePicker.launchImageLibraryAsync({
-  //     mediaTypes: ImagePicker.MediaTypeOptions.Images,
-  //     allowsEditing: true,
-  //     quality: 0.8,
-  //   });
-
-  //   if (!result.canceled) {
-  //     setImageUri(result.assets[0].uri);
-  //   }
-  // };
-
-  const pickImage = async () => {
-  await pickImageAndPersist((uri) => {
-    setImageUri(uri);
-    setImageLocal(uri); // if you use imageLocal elsewhere
-  }, "addServiceImage");
-};
-
-  // const onSave = () => {
-  //   // 🔐 Save appointment times as ISO timestamps
-  //   const availability = serializeAvailabilityISO(slotsByDate);
-  //   const payload = { service, description, price, tag, imageUri, availability };
-
-  //   console.log("Saving:\n", JSON.stringify(payload, null, 2));
-  //   Alert.alert("Saved", "Service details saved!");
-  //   // TODO: POST `payload` to your backend
-  // };
-
   const onSave = async () => {
-  try {
-    const availability = serializeAvailabilityISO(slotsByDate);
+    try {
+      const availability = serializeAvailabilityISO(slotsByDate);
 
-    // choose multipart when there is an image, otherwise JSON
-    if (imageUri) {
-      const fd = new FormData();
-      fd.append("name", service);
-      fd.append("description", description);
-      fd.append("price", String(price || 0));
-      fd.append("type", tag);
-      fd.append("image", {
-        uri: imageUri,
-        name: "service.jpg",
-        type: "image/jpeg",
-      });
-      // backend accepts availability map; stringify in multipart
-      fd.append("availability", JSON.stringify(availability));
+      // choose multipart when there are images, otherwise JSON
+      if (images && images.length > 0) {
+        const fd = new FormData();
+        fd.append("name", service);
+        fd.append("description", description);
+        fd.append("price", String(price || 0));
+        fd.append("type", tag);
+        fd.append("availability", JSON.stringify(availability));
 
-      await api("/services/", { method: "POST", body: fd });
-    } else {
-      await api("/services/", {
-        method: "POST",
-        body: JSON.stringify({
-          name: service,
-          description,
-          price,
-          type: tag,
-          availability, // object shape OK for JSON
-        }),
-      });
+        images.forEach((img, idx) => {
+          const uri = img.uri || img;
+          const filename = uri.split("/").pop();
+          const match = /\.(\w+)$/.exec(filename);
+          const type = match ? `image/${match[1]}` : "image/jpeg";
+          fd.append("images", { uri, name: filename, type });
+        });
+
+        await api("/services/", { method: "POST", body: fd });
+      } else {
+        await api("/services/", {
+          method: "POST",
+          body: JSON.stringify({
+            name: service,
+            description,
+            price,
+            type: tag,
+            availability,
+          }),
+        });
+      }
+
+      Alert.alert("Saved", "Service created!");
+      navigation?.goBack?.();
+    } catch (e) {
+      Alert.alert("Error", String(e.message || e));
     }
-
-    Alert.alert("Saved", "Service created!");
-    // go back — your Profile screen should refetch on focus
-    navigation?.goBack?.();
-  } catch (e) {
-    Alert.alert("Error", String(e.message || e));
-  }
-};
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={8}>
         <View style={styles.header}>
-        <TouchableOpacity
+          <TouchableOpacity
             onPress={() => {
               if (navigation.canGoBack()) {
                 navigation.goBack();
@@ -201,7 +165,7 @@ export default function AddServices({ navigation }) {
               }
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={{ zIndex: 2 }}  // keep it above anything else
+            style={{ zIndex: 2 }}
           >
             <Text style={styles.backText}>‹ Back</Text>
           </TouchableOpacity>
@@ -209,11 +173,7 @@ export default function AddServices({ navigation }) {
           <View style={{ width: 48 }} />
         </View>
 
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {/* Service */}
           <Text style={styles.label}>Service</Text>
           <TextInput
@@ -225,7 +185,7 @@ export default function AddServices({ navigation }) {
             returnKeyType="done"
           />
 
-          {/* Description (renamed from About) */}
+          {/* Description */}
           <Text style={styles.label}>Description</Text>
           <TextInput
             style={[styles.input, styles.textarea]}
@@ -247,7 +207,7 @@ export default function AddServices({ navigation }) {
             placeholder="0.00"
           />
 
-          {/* Service Tag - single select */}
+          {/* Tag */}
           <Text style={styles.label}>Service Tag</Text>
           <TouchableOpacity style={styles.select} onPress={() => setTagPickerVisible(true)}>
             <Text style={[styles.selectText, !tag && { color: "#9CA3AF" }]}>
@@ -300,18 +260,9 @@ export default function AddServices({ navigation }) {
             </TouchableOpacity>
           )}
 
-          {/* Service Image */}
-          <Text style={styles.label}>Service Image</Text>
-          <TouchableOpacity style={styles.imagePicker} onPress={pickImage} activeOpacity={0.8}>
-            {imageUri ? (
-              <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
-            ) : (
-              <View style={styles.imagePlaceholder}>
-                <Icon name="image-outline" size={36} color="#9CA3AF" />
-                <Text style={{ color: "#9CA3AF", marginTop: 6 }}>Tap to choose photo</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {/* Image gallery (multiple) */}
+          <Text style={styles.label}>Service Image(s)</Text>
+          <ImageGalleryPicker images={images} onChange={setImages} maxImages={6} />
 
           {/* Save */}
           <View style={{ height: 16 }} />
@@ -335,24 +286,13 @@ export default function AddServices({ navigation }) {
                   <Text style={styles.doneBtn}>Done</Text>
                 </TouchableOpacity>
               </View>
-              <DateTimePicker
-                value={tempTime}
-                mode="time"
-                display="spinner"
-                onChange={(_, d) => d && setTempTime(d)}
-                style={{ alignSelf: "stretch" }}
-              />
+              <DateTimePicker value={tempTime} mode="time" display="spinner" onChange={(_, d) => d && setTempTime(d)} style={{ alignSelf: "stretch" }} />
             </View>
           </View>
         </Modal>
 
         {/* Tag Picker Modal */}
-        <Modal
-          visible={tagPickerVisible}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setTagPickerVisible(false)}
-        >
+        <Modal visible={tagPickerVisible} animationType="slide" transparent onRequestClose={() => setTagPickerVisible(false)}>
           <View style={styles.modalBackdrop}>
             <View style={styles.modalSheet}>
               <View style={styles.modalHeader}>
@@ -476,10 +416,7 @@ const styles = StyleSheet.create({
   },
   saveText: { fontWeight: "700", color: "white", fontSize: 16 },
 
-  // Modal backdrop
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-
-  // Time picker sheet
   timeSheet: { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 24, paddingHorizontal: 12 },
   modalHeader: {
     paddingHorizontal: 8, paddingTop: 12, paddingBottom: 8,
@@ -489,7 +426,6 @@ const styles = StyleSheet.create({
   cancelBtn: { color: "#6B7280", fontSize: 16 },
   doneBtn: { color: "#ff6b8a", fontSize: 16, fontWeight: "700" },
 
-  // Tag sheet
   modalSheet: { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 20, maxHeight: "60%" },
   sep: { height: StyleSheet.hairlineWidth, backgroundColor: "#E5E7EB", marginLeft: 56 },
   optionRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14 },
