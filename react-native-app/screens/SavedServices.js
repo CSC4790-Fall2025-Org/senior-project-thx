@@ -3,18 +3,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import EvilIcons from 'react-native-vector-icons/EvilIcons'; 
 import Ionicons from 'react-native-vector-icons/Ionicons'; 
 import Feather from 'react-native-vector-icons/Feather'; 
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import ServiceList from '../components/ServiceList'; 
 import { dummyData } from '../data/Dummy'; 
 
 const { height } = Dimensions.get('window'); 
 
 const services = [ 
-    { id: 1, name: 'Haircut' }, 
-    { id: 2, name: 'Nails' }, 
-    { id: 3, name: 'Cooking' },
-    { id: 4, name: 'Tutoring' }, 
-    { id: 5, name: 'Makeup' }, 
-  ]; 
+    { id: 1, name: 'Haircut', iconLib: 'Feather', iconName: 'scissors' }, 
+    { id: 2, name: 'Nails', iconLib: 'FontAwesome5', iconName: 'paint-brush' }, 
+    { id: 3, name: 'Cooking', iconLib: 'MaterialCommunityIcons', iconName: 'chef-hat' },
+    { id: 4, name: 'Tutoring', iconLib: 'MaterialCommunityIcons', iconName: 'school' }, 
+    { id: 5, name: 'Makeup', iconLib: 'FontAwesome5', iconName: 'palette' }, 
+]; 
 
 const SavedServices = ({navigation}) => { 
     const flattenedServices = dummyData.flatMap(provider => 
@@ -25,6 +27,23 @@ const SavedServices = ({navigation}) => {
       id: `${provider.id}-${service.service}`,  
     })) 
     ); 
+
+    const renderIcon = (item, size = 30, color = '#333') => {
+      const { iconLib, iconName } = item;
+      const props = { name: iconName, size, color };
+      switch (iconLib) {
+        case 'Feather':
+          return <Feather {...props} />;
+        case 'FontAwesome5':
+          return <FontAwesome5 {...props} solid={false} />;
+        case 'MaterialCommunityIcons':
+          return <MaterialCommunityIcons {...props} />;
+        case 'Ionicons':
+          return <Ionicons {...props} />;
+        default:
+          return <Feather name="circle" size={size} color={color} />;
+      }
+    };
 
     return ( 
         <View style={styles.container}> 
@@ -63,7 +82,7 @@ const SavedServices = ({navigation}) => {
                 <Text style={styles.topServiceText}>TOP SERVICES</Text> 
                 <FlatList 
                     data={services} 
-                    keyExtractor={(item) => item.id.toString()} 
+                    keyExtractor={(item) => String(item.id)} 
                     horizontal 
                     showsHorizontalScrollIndicator={false} 
                     contentContainerStyle={styles.carouselContainer} 
@@ -73,6 +92,9 @@ const SavedServices = ({navigation}) => {
                             style={styles.serviceCircle} 
                             onPress={() => console.log('Pressed:', item.name)} 
                         > 
+                          <View style={styles.iconWrapper}>
+                            {renderIcon(item, 37, '#333')}
+                          </View>
                         </TouchableOpacity> 
                         <Text style={styles.serviceTypeText}>{item.name}</Text> 
                     </View> 
@@ -208,7 +230,7 @@ const styles = StyleSheet.create({
     }, 
     serviceItem: { 
         alignItems: 'center', 
-        width: 75, 
+        width: 92, 
     }, 
     serviceCircle: { 
         height: 85, 
@@ -217,9 +239,15 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff', 
         justifyContent: 'center', 
         alignItems: 'center', 
+        elevation: 6, 
+        shadowColor: '#000', 
+        shadowOpacity: 0.08, 
+        shadowOffset: { width: 0, height: 4 }, 
+        shadowRadius: 8, 
     }, 
+    iconWrapper: { justifyContent: 'center', alignItems: 'center' },
     serviceTypeText: { 
-        marginTop: 5, 
+        marginTop: 8, 
         textAlign: 'center', 
         fontSize: 13, 
         fontFamily: 'Poppins', 

@@ -17,12 +17,19 @@ import { useNavigation } from '@react-navigation/native';
 import Feather from 'react-native-vector-icons/Feather';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { api } from "../src/api";
+import { API_BASE } from "../src/config";
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = height * 0.10;
 
+const buildAbsolute = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  const host = API_BASE.replace(/\/api\/?$/, '');
+  return url.startsWith('/') ? `${host}${url}` : `${host}/${url}`;
+};
+
 export default function Profile() {
-  // const user = dummyData[0]; UPDATE
   const [user, setUser] = useState({ services: [], location: '' });
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -33,27 +40,77 @@ export default function Profile() {
 
   const navigation = useNavigation();
 
-  // LOAD PROFILE
+  const normalizeService = (s) => {
+    // normalize images: prefer s.images array, fallback s.image
+    const srvImages = Array.isArray(s.images) ? s.images : s.image ? [s.image] : [];
+    const first = srvImages[0] || null;
+
+    const imageObj = first
+      ? (typeof first === 'string'
+          ? { uri: buildAbsolute(first) }
+          : { id: first.id, uri: buildAbsolute(first.url || first.uri) })
+      : null;
+
+    return {
+      ...s,
+      service_id: s.id,
+      tag: s.type,
+      price: Number(s.price),
+      image: imageObj,
+    };
+  };
+
+  // If the profile response doesn't include image data for services,
+  // fetch each service detail and merge images. This is a safe client-side fallback.
+  const enrichServicesWithDetailsIfNeeded = async (rawServices = []) => {
+    if (!Array.isArray(rawServices) || rawServices.length === 0) return [];
+    // limit parallelism if you expect many services; for now fetch all
+    const enriched = await Promise.all(
+      rawServices.map(async (s) => {
+        try {
+          const hasImages =
+            (Array.isArray(s.images) && s.images.length > 0) || s.image;
+          if (hasImages) {
+            // already has images, just return normalized
+            return normalizeService(s);
+          }
+          // fetch detail to get images
+          const id = s.id ?? s.service_id;
+          if (!id) return normalizeService(s);
+          const detail = await api(`/services/${id}/`);
+          // merge images from detail if present
+          const merged = { ...s, images: detail.images ?? detail.image ?? s.images };
+          return normalizeService(merged);
+        } catch (err) {
+          console.log(`enrichServices: failed to fetch detail for service ${s.id || s.service_id}`, err);
+          return normalizeService(s);
+        }
+      })
+    );
+    return enriched;
+  };
+
+  // LOAD PROFILE (initial)
   useEffect(() => {
     (async () => {
       console.log("PROFILE EFFECT START");
       try {
         const myInfo = await api('/profile/me/');
-        console.log("PROFILE /me", myInfo);
-        const services = (myInfo.services || []).map(s => ({
-          ...s,
-          service_id: s.id,
-          tag: s.type,
-          price: Number(s.price),
-      }));
+        console.log("PROFILE /me (raw):", myInfo);
 
-        setUser({ ...myInfo, services });
+        // attempt to enrich services with images if the profile response omitted them
+        const enrichedServices = await enrichServicesWithDetailsIfNeeded(myInfo.services || []);
+        console.log("PROFILE normalized services (count):", enrichedServices.length);
+        enrichedServices.forEach((svc, i) => {
+          console.log(` service[${i}] id=${svc.id || svc.service_id} image=`, svc.image);
+        });
+
+        setUser({ ...myInfo, services: enrichedServices });
         setName(myInfo.name || '');
         setEmail(myInfo.email || '');
         setLocation(myInfo.location || '');
         setOriginalEmail(myInfo.email || '');
         setOriginalLocation(myInfo.location || '');
-        
       } catch (e) {
         console.log("PROFILE LOAD ERROR", e);
         alert('Failed to load user info');
@@ -61,35 +118,29 @@ export default function Profile() {
     })();
   }, []);
 
+  // reload on focus (so after edits the profile refreshes)
   useEffect(() => {
-  const unsubscribe = navigation.addListener("focus", () => {
-    (async () => {
-      try {
-        const myInfo = await api("/profile/me/");
-        const services = (myInfo.services || []).map((s) => ({
-          ...s,
-          service_id: s.id,
-          tag: s.type,
-          price: Number(s.price),
-        }));
-        setUser({ ...myInfo, services });
-        setName(myInfo.name || "");
-        setEmail(myInfo.email || "");
-        setOriginalEmail(myInfo.email || "");
-        setOriginalLocation(myInfo.location || "");
-        setLocation(myInfo.location || "");
-      } catch (e) {
-        alert("Failed to reload profile info");
-      }
-    })();
-  });
-
-  return unsubscribe;
-}, [navigation]);
-
-  // const handleDeleteService = (service_id) => {
-  //   alert(`Service ${service_id} deleted!`);
-  // };
+    const unsubscribe = navigation.addListener("focus", () => {
+      (async () => {
+        try {
+          const myInfo = await api("/profile/me/");
+          // enrich again to ensure images are present
+          const enriched = await enrichServicesWithDetailsIfNeeded(myInfo.services || []);
+          console.log("PROFILE reload normalized services:", enriched.map(s => ({ id: s.id || s.service_id, image: s.image })));
+          setUser({ ...myInfo, services: enriched });
+          setName(myInfo.name || "");
+          setEmail(myInfo.email || "");
+          setOriginalEmail(myInfo.email || "");
+          setOriginalLocation(myInfo.location || "");
+          setLocation(myInfo.location || "");
+        } catch (e) {
+          console.log("PROFILE reload error", e);
+          alert("Failed to reload profile info");
+        }
+      })();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const handleDeleteService = async (service_id) => {
     try {
@@ -104,13 +155,6 @@ export default function Profile() {
     }
   };
 
-  // const handleSave = () => {
-  //   setOriginalEmail(email);
-  //   setOriginalLocation(location);
-  //   alert('Profile changes saved!');
-  //   // Optionally, do API call here
-  // };
-
   const handleSave = async () => {
     try {
       const updatedInfo = await api('/profile/me/', {
@@ -118,14 +162,8 @@ export default function Profile() {
         body: JSON.stringify({ email, location }),
       });
 
-      const services = (updatedInfo.services || []).map(s => ({
-        ...s,
-        service_id: s.id,
-        tag: s.type,
-        price: Number(s.price),
-      }));
-
-      setUser({ ...updatedInfo, services });
+      const enriched = await enrichServicesWithDetailsIfNeeded(updatedInfo.services || []);
+      setUser({ ...updatedInfo, services: enriched });
       setOriginalEmail(updatedInfo.email);
       setOriginalLocation(updatedInfo.location);
       alert('Profile changes saved!');
@@ -134,24 +172,17 @@ export default function Profile() {
     }
   };
 
-  const isChanged = email !== originalEmail || location !== originalLocation;
-
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={AppStyles.container}>
-        {/* Gradient as original, not absolute */}
         <LinearGradient
           colors={[colors.gradientStart, colors.gradientEnd]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          pointerEvents="none" // let touches go to inputs below
-          style={[
-            AppStyles.headerBg,
-            { zIndex: 20, elevation: 20 } // keep header above scrolled content
-          ]}
+          pointerEvents="none"
+          style={[AppStyles.headerBg, { zIndex: 20, elevation: 20 }]}
         />
 
-        {/* Main scrollable content */}
         <ScrollView
           style={{ flex: 1, width: '100%' }}
           contentContainerStyle={{ paddingTop: HEADER_HEIGHT + 16, paddingBottom: 130 }}
@@ -189,7 +220,6 @@ export default function Profile() {
             />
           </View>
 
-          {/* Add Services Button - links directly to AddServices.js */}
           <TouchableOpacity
             style={AppStyles.addServicesBtn}
             onPress={() => navigation.navigate('AddServices')}
@@ -197,7 +227,6 @@ export default function Profile() {
             <Text style={AppStyles.addServicesText}>Add Services</Text>
           </TouchableOpacity>
 
-          {/* Services List is always visible (no toggle button) */}
           {user.services && Array.isArray(user.services) && (
             <View style={AppStyles.servicesContainer}>
               {user.services.map(service => (
@@ -205,7 +234,7 @@ export default function Profile() {
                   key={service.service_id}
                   image={service.image}
                   title={service.name}
-                  price={`$${service.price.toFixed(2)}`}
+                  price={`$${(service.price || 0).toFixed(2)}`}
                   category={service.tag}
                   onEdit={() => navigation.navigate('EditServices', {
                     service_id: service.service_id || service.id,
@@ -216,18 +245,16 @@ export default function Profile() {
             </View>
           )}
 
-          {/* Save button ALWAYS at the bottom of scroll content */}
-          {isChanged && (
+          {email !== originalEmail || location !== originalLocation ? (
             <TouchableOpacity
               style={[AppStyles.addServicesBtn, { marginBottom: 24, marginTop: 10 }]}
               onPress={handleSave}
             >
               <Text style={AppStyles.addServicesText}>Save</Text>
             </TouchableOpacity>
-          )}
+          ) : null}
         </ScrollView>
 
-        {/* NAVIGATION BAR */}
         <View style={styles.navBarContainer}>
           <TouchableOpacity onPress={() => navigation.navigate('MyBookings')}>
             <Feather name="calendar" size={28} color="#333" />

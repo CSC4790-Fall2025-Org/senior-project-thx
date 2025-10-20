@@ -1,22 +1,34 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View, Dimensions, TouchableOpacity, TextInput, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, Dimensions, TouchableOpacity, TextInput, FlatList, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Feather from 'react-native-vector-icons/Feather';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { api } from '../src/api';
+import { API_BASE } from '../src/config';
 
 const { height } = Dimensions.get('window'); 
 
+// TOP_CATEGORIES now includes icon metadata (library + name)
 const TOP_CATEGORIES = [
-  { id: 'Haircuts', name: 'Haircuts' },
-  { id: 'Nails', name: 'Nails' },
-  { id: 'Cooking', name: 'Cooking' },
-  { id: 'Tutoring', name: 'Tutoring' },
-  { id: 'Makeup', name: 'Makeup' },
+  { id: 'Haircuts', name: 'Haircuts', iconLib: 'Feather', iconName: 'scissors' },
+  { id: 'Nails', name: 'Nails', iconLib: 'FontAwesome5', iconName: 'paint-brush' },
+  { id: 'Cooking', name: 'Cooking', iconLib: 'MaterialCommunityIcons', iconName: 'chef-hat' },
+  { id: 'Tutoring', name: 'Tutoring', iconLib: 'MaterialCommunityIcons', iconName: 'school' },
+  { id: 'Makeup', name: 'Makeup', iconLib: 'FontAwesome5', iconName: 'palette' },
 ];
 
 const DEMO_HEADERS = {};
+
+const buildAbsolute = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  // Remove trailing /api from API_BASE then prefix
+  const host = API_BASE.replace(/\/api\/?$/, '');
+  return `${host}${url}`;
+};
 
 const Home = ({navigation}) => { 
     const [services, setServices] = useState([]);
@@ -43,28 +55,24 @@ const Home = ({navigation}) => {
     return qs ? `?${qs}` : '';
   }, [search, selectedTag]);
 
-    // const flattenedServices = dummyData.flatMap(provider => 
-    // provider.services.map(service => ({ 
-    //   ...service, 
-    //   providerName: provider.name, 
-    //   location: provider.location, 
-    //   id: `${provider.id}-${service.service}`,  
-    // })) 
-    // ); 
-
     const fetchServices = useCallback(async (showSpinner = true) => {
         try {
         setError('');
         if (showSpinner) setLoading(true);
         const data = await api(`/services/${queryString}`, { headers: { ...DEMO_HEADERS } });
-        const normalized = (Array.isArray(data) ? data : []).map((svc) => ({
-            id: svc.id,
-            name: svc.name,
-            price: svc.price,
-            type: svc.type,
-            // Will show if you later include it in the serializer (e.g. provider_name = service.user.name)
-            providerName: svc.provider_name || svc.user_name || svc.owner_name || null,
-        }));
+        const normalized = (Array.isArray(data) ? data : []).map((svc) => {
+            // pick first image if present
+            const firstImage = Array.isArray(svc.images) && svc.images.length ? svc.images[0] : null;
+            const imageUrl = firstImage ? (typeof firstImage === 'string' ? buildAbsolute(firstImage) : buildAbsolute(firstImage.url)) : null;
+            return {
+                id: svc.id,
+                name: svc.name,
+                price: svc.price,
+                type: svc.type,
+                providerName: svc.provider_name || svc.user_name || svc.owner_name || null,
+                imageUrl,
+            };
+        });
         setServices(normalized);
         } catch (e) {
         setError(e.message?.toString() || 'Failed to load services');
@@ -88,15 +96,38 @@ const Home = ({navigation}) => {
         setSelectedTag((prev) => (prev === tagName ? '' : tagName));
     }, []);
 
+    // helper to render icon based on the category's iconLib
+    const renderCategoryIcon = (cat, size = 36, color = "#222") => {
+      const { iconLib, iconName } = cat;
+      const iconProps = { name: iconName, size, color };
+      switch (iconLib) {
+        case 'Feather':
+          return <Feather {...iconProps} />;
+        case 'FontAwesome5':
+          return <FontAwesome5 {...iconProps} solid={false} />;
+        case 'MaterialCommunityIcons':
+          return <MaterialCommunityIcons {...iconProps} />;
+        case 'Ionicons':
+          return <Ionicons {...iconProps} />;
+        default:
+          return <Feather name="circle" size={size} color={color} />;
+      }
+    };
+
     const renderCategory = ({ item }) => {
         const isActive = selectedTag === item.name;
         return (
         <View style={styles.serviceItem}>
             <TouchableOpacity
-            style={[styles.serviceCircle, isActive && { borderWidth: 2, borderColor: '#ED7678' }]}
+            style={[styles.serviceCircle, isActive && styles.serviceCircleActive]}
             onPress={() => onPressCategory(item.name)}
-            />
-            <Text style={[styles.serviceTypeText, isActive && { color: '#ED7678', fontWeight: 'bold' }]}>{item.name}</Text>
+            activeOpacity={0.8}
+            >
+              <View style={styles.iconWrapper}>
+                {renderCategoryIcon(item, 37, isActive ? '#ED7678' : '#333')}
+              </View>
+            </TouchableOpacity>
+            <Text style={[styles.serviceTypeText, isActive && { color: '#ED7678', fontWeight: '700' }]}>{item.name}</Text>
         </View>
         );
     };
@@ -104,8 +135,12 @@ const Home = ({navigation}) => {
     const renderService = ({ item }) => (
         <View style={styles.serviceCard}>
         <View style={styles.cardContent}>
-            {/* Placeholder image; swap to <Image /> when you have image URLs */}
-            <View style={styles.serviceImage} />
+            {/* Show first image if available */}
+            {item.imageUrl ? (
+              <Image source={{ uri: item.imageUrl }} style={styles.serviceImage} />
+            ) : (
+              <View style={styles.serviceImage} />
+            )}
             <View style={styles.serviceInfo}>
             <Text style={styles.serviceType}>{item.name}</Text>
             {!!item.providerName && <Text style={styles.providerName}>by {item.providerName}</Text>}
@@ -133,15 +168,6 @@ const Home = ({navigation}) => {
                 <Text style= {styles.helloText}>Hello!</Text> 
                 <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}></TouchableOpacity> 
                 
-                {/* FILTERS 
-                <TouchableOpacity style ={styles.filterFrame}> 
-                    <View style={styles.filterIcon}> 
-                        <Ionicons name="filter-outline" size={25}/> 
-                    </View> 
-                </TouchableOpacity>  */}
-                
-                {/* SEARCH BOX */} 
-
                 <View style ={styles.textInputBox}> 
                     <View style ={styles.searchIcon}> 
                         <EvilIcons name="search" size={24}/> 
@@ -245,9 +271,11 @@ const styles = StyleSheet.create({
   categoryContent: { height: height * 0.20, width: '100%', position: 'relative', zIndex: 1 },
   topServiceText: { position: 'absolute', left: '4.4%', top: '8%', fontSize: 24, fontWeight: 'bold', fontFamily: 'Poppins' },
   carouselContainer: { paddingLeft: 20, paddingRight: 20, marginTop: 60, gap: 20, flexDirection: 'row' },
-  serviceItem: { alignItems: 'center', width: 75 },
-  serviceCircle: { height: 85, width: 85, borderRadius: 1000, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
-  serviceTypeText: { marginTop: 5, textAlign: 'center', fontSize: 13, fontFamily: 'Poppins', color: '#594C46' },
+  serviceItem: { alignItems: 'center', width: 92 },
+  serviceCircle: { height: 85, width: 85, borderRadius: 1000, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.08, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8 },
+  serviceCircleActive: { borderWidth: 2, borderColor: '#ED7678' },
+  iconWrapper: { justifyContent: 'center', alignItems: 'center' },
+  serviceTypeText: { marginTop: 8, textAlign: 'center', fontSize: 13, fontFamily: 'Poppins', color: '#594C46' },
 
   // SERVICES LIST
   serviceContainer: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },

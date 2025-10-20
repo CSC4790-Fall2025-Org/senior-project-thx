@@ -19,9 +19,44 @@ export default function ServiceCard({ image, title, price, category, onEdit, onD
     );
   };
 
+  // resolve the Image source from a variety of shapes:
+  // - null/undefined -> no image (render placeholder view)
+  // - string -> treat as uri
+  // - object { uri } or { url } -> use uri/url
+  let imgSource = null;
+  try {
+    if (image) {
+      if (typeof image === 'string') {
+        imgSource = { uri: image };
+      } else if (typeof image === 'object') {
+        if (image.uri) imgSource = { uri: image.uri };
+        else if (image.url) imgSource = { uri: image.url };
+      }
+    }
+  } catch (err) {
+    console.log('ServiceCard: error resolving image source', err);
+  }
+
+  // debug log to help identify issues in Profile render
+  // (remove or lower in production)
+  // NOTE: this prints many lines if you have many cards; it's deliberate for debugging.
+  console.log('ServiceCard image source:', imgSource);
+
   return (
     <View style={styles.card}>
-      <Image source={image} style={styles.image} />
+      {imgSource ? (
+        <Image
+          source={imgSource}
+          style={styles.image}
+          resizeMode="cover"
+          onError={(e) => {
+            console.log('ServiceCard image load error:', e.nativeEvent?.error);
+          }}
+        />
+      ) : (
+        <View style={styles.image} />
+      )}
+
       <View style={styles.info}>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.price}>{price}</Text>
