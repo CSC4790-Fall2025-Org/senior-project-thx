@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, ScrollView, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Feather from 'react-native-vector-icons/Feather';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -7,6 +7,7 @@ import AntDesign from 'react-native-vector-icons/AntDesign';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../src/api';
 import { API_BASE } from '../src/config';
+import * as Linking from 'expo-linking';
 
 const { height } = Dimensions.get('window');
 const DEMO_HEADERS = {};
@@ -112,10 +113,22 @@ const ServiceDetails = ({route, navigation}) => {
 
       {/* rest of UI unchanged */}
       <View style={styles.extraButtonsContainer}>
-        <TouchableOpacity style={styles.square}>
-          <FontAwesome name="map-o" size={30} />
-          <Text style={styles.squareLabel}>Direction</Text>
-        </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.square}
+        onPress={() => {
+          const destination = service.location?.trim() || 'Villanova University';
+
+          const url = Platform.select({
+            ios: `maps:0,0?q=${encodeURIComponent(destination)}`,
+            android: `geo:0,0?q=${encodeURIComponent(destination)}`
+          });
+
+          Linking.openURL(url);
+        }}
+      >
+        <FontAwesome name="map-o" size={30} />
+        <Text style={styles.squareLabel}>Direction</Text>
+      </TouchableOpacity>
 
         <TouchableOpacity style={styles.square} onPress={() => {/* future: open chat */}}>
           <AntDesign name="message" size={30} />

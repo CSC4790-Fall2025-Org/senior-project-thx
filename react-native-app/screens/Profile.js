@@ -158,12 +158,19 @@ export default function Profile() {
   const handleSave = async () => {
     try {
       const updatedInfo = await api('/profile/me/', {
-        method: 'PUT',
-        body: JSON.stringify({ email, location }),
+        method: 'PATCH',
+        body: JSON.stringify({ name, location }),
       });
 
-      const enriched = await enrichServicesWithDetailsIfNeeded(updatedInfo.services || []);
-      setUser({ ...updatedInfo, services: enriched });
+      const services = (updatedInfo.services || []).map(s => ({
+        ...s,
+        service_id: s.id,
+        tag: s.type,
+        price: Number(s.price),
+        providerName: updatedInfo||'',
+      }));
+
+      setUser({ ...updatedInfo, services });
       setOriginalEmail(updatedInfo.email);
       setOriginalLocation(updatedInfo.location);
       alert('Profile changes saved!');
@@ -171,6 +178,8 @@ export default function Profile() {
       alert('Failed to save profile changes');
     }
   };
+
+  const isChanged = email !== originalEmail || location !== originalLocation;
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -194,7 +203,7 @@ export default function Profile() {
             </View>
             <TextInput
               style={AppStyles.nameText}
-              value={name}
+              value={name || ''}
               onChangeText={setName}
               editable={true}
               placeholder="Your Name"
@@ -207,14 +216,14 @@ export default function Profile() {
             <TextInput
               style={AppStyles.input}
               value={email}
-              onChangeText={setEmail}
-              editable={true}
-              autoCapitalize="none"
+              // onChangeText={setEmail}
+              editable={false}
+              // autoCapitalize="none"
             />
             <Text style={AppStyles.label}>Location</Text>
             <TextInput
               style={AppStyles.input}
-              value={location}
+              value={location || ''}
               onChangeText={setLocation}
               editable={true}
             />
