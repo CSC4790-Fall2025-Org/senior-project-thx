@@ -31,6 +31,9 @@ const buildAbsolute = (url) => {
 };
 
 const Home = ({navigation}) => { 
+    const [profileLoading, setProfileLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState(null);
+
     const [services, setServices] = useState([]);
     const [searchText, setSearchText] = useState('');
     const [selectedTag, setSelectedTag] = useState('');
@@ -48,12 +51,12 @@ const Home = ({navigation}) => {
     }, []);
 
     const queryString = useMemo(() => {
-    const params = new URLSearchParams();
-    if (search.trim()) params.append('name', search.trim());
-    if (selectedTag.trim()) params.append('tag', selectedTag.trim());
-    const qs = params.toString();
-    return qs ? `?${qs}` : '';
-  }, [search, selectedTag]);
+        const params = new URLSearchParams();
+        if (search.trim()) params.append('name', search.trim());
+        if (selectedTag.trim()) params.append('tag', selectedTag.trim());
+        const qs = params.toString();
+        return qs ? `?${qs}` : '';
+    }, [search, selectedTag]);
 
     const fetchServices = useCallback(async (showSpinner = true) => {
         try {
@@ -61,6 +64,7 @@ const Home = ({navigation}) => {
         if (showSpinner) setLoading(true);
         const data = await api(`/services/${queryString}`, { headers: { ...DEMO_HEADERS } });
         const normalized = (Array.isArray(data) ? data : []).map((svc) => {
+            console.log('Fetched service:', svc);
             // pick first image if present
             const firstImage = Array.isArray(svc.images) && svc.images.length ? svc.images[0] : null;
             const imageUrl = firstImage ? (typeof firstImage === 'string' ? buildAbsolute(firstImage) : buildAbsolute(firstImage.url)) : null;
@@ -69,22 +73,62 @@ const Home = ({navigation}) => {
                 name: svc.name,
                 price: svc.price,
                 type: svc.type,
-                providerName: svc.provider_name || svc.user_name || svc.owner_name || null,
+                providerName: svc.provider_name || 'Unknown',
                 imageUrl,
+                availability: svc.availability || [],
+                ownerId: svc.user_id|| null,
             };
         });
-        setServices(normalized);
+
+        console.log('Filtering services, currentUserId:', currentUserId);
+        normalized.forEach(svc => {
+            console.log('Service ownerId:', svc.ownerId, 'Match?', String(svc.ownerId) === String(currentUserId));
+        });
+
+        const filtered = currentUserId
+            ? normalized.filter(service => String(service.ownerId).trim() !== String(currentUserId).trim())
+            : normalized;
+
+        // setServices(normalized);
+        setServices(filtered);
+
+
         } catch (e) {
         setError(e.message?.toString() || 'Failed to load services');
         } finally {
         if (showSpinner) setLoading(false);
         }
-    }, [queryString]);
+    }, [queryString, currentUserId]);
 
     useEffect(() => {
-        fetchServices(true);
+        (async () => {
+          try {
+            const profile = await api('/profile/me/');
+            setCurrentUserId(profile.id); // or profile.user_id depending on your API
+          } catch (e) {
+            console.warn('Failed to load user profile for filtering');
+          }finally {
+            setProfileLoading(false);
+          }
+          
+        })();
+    }, []);
+
+    useEffect(() => {
+        if (!profileLoading && currentUserId !== null) {
+          fetchServices(true);
+        }
         return () => debounceTimer.current && clearTimeout(debounceTimer.current);
-    }, [fetchServices]);
+    }, [fetchServices, currentUserId, profileLoading]);
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+          if (currentUserId !== null) {
+            fetchServices(true);
+          }
+        });
+        return unsubscribe;
+    }, [navigation, fetchServices, currentUserId]);
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -132,7 +176,9 @@ const Home = ({navigation}) => {
         );
     };
 
-    const renderService = ({ item }) => (
+    const renderService = ({ item }) => {
+        console.log('Rendering service:', item);
+        return(
         <View style={styles.serviceCard}>
         <View style={styles.cardContent}>
             {/* Show first image if available */}
@@ -143,7 +189,7 @@ const Home = ({navigation}) => {
             )}
             <View style={styles.serviceInfo}>
             <Text style={styles.serviceType}>{item.name}</Text>
-            {!!item.providerName && <Text style={styles.providerName}>by {item.providerName}</Text>}
+            <Text style={styles.providerName}>by {item.providerName || 'Unknown'}</Text>
             <Text style={styles.serviceCost}>${Number(item.price).toFixed(2)}</Text>
             </View>
             <TouchableOpacity
@@ -155,6 +201,15 @@ const Home = ({navigation}) => {
         </View>
         </View>
     );
+    };
+
+    if(profileLoading) {
+        return(
+            <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
+                <ActivityIndicator size="large" />
+            </View>
+        )
+    }
 
     return ( 
         <View style={styles.container}> 

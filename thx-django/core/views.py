@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
+from django.utils.dateparse import parse_datetime
 
 from .models import Service, Availability, Booking, ServiceImage
 from .serializers import (
@@ -16,7 +17,7 @@ from .serializers import (
     get_active_demo_user,
 )
 
-User = get_user_model()
+# User = get_user_model()
 
 
 def resolve_request_user(request):
@@ -46,12 +47,12 @@ class ProfileMeView(APIView):
     PATCH /api/profile/me/   -> update demo profile fields
     """
     def get(self, request):
-        user = get_active_demo_user(request)
+        user = request.user
         ser = UserMeSerializer(user, context={"request": request})
         return Response(ser.data)
 
     def patch(self, request):
-        user = get_active_demo_user(request)
+        user = request.user
         ser = UserMeSerializer(user, data=request.data, partial=True, context={"request": request})
         ser.is_valid(raise_exception=True)
         ser.save()

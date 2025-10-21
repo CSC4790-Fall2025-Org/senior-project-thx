@@ -5,7 +5,7 @@ from django.conf import settings
 # Create your models here.
 
 class User(AbstractUser):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, blank = True)
     email = models.EmailField(unique=True)
     profile_picture = models.ImageField(upload_to="profile_pics/", blank=True, null=True)
     location = models.CharField(max_length=200, blank=True)

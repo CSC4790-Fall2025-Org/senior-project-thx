@@ -111,46 +111,40 @@ export default function AddServices({ navigation }) {
   };
 
   const onSave = async () => {
-    try {
-      const availability = serializeAvailabilityISO(slotsByDate);
+  try {
+    const availability = serializeAvailabilityISO(slotsByDate);
 
-      // choose multipart when there are images, otherwise JSON
-      if (images && images.length > 0) {
-        const fd = new FormData();
-        fd.append("name", service);
-        fd.append("description", description);
-        fd.append("price", String(price || 0));
-        fd.append("type", tag);
-        fd.append("availability", JSON.stringify(availability));
+    // Always use FormData (even if no images)
+    const fd = new FormData();
+    fd.append("name", service);
+    fd.append("description", description);
+    fd.append("price", String(price || 0));
+    fd.append("type", tag);
+    fd.append("availability", JSON.stringify(availability));
 
-        images.forEach((img, idx) => {
-          const uri = img.uri || img;
-          const filename = uri.split("/").pop();
-          const match = /\.(\w+)$/.exec(filename);
-          const type = match ? `image/${match[1]}` : "image/jpeg";
-          fd.append("images", { uri, name: filename, type });
-        });
-
-        await api("/services/", { method: "POST", body: fd });
-      } else {
-        await api("/services/", {
-          method: "POST",
-          body: JSON.stringify({
-            name: service,
-            description,
-            price,
-            type: tag,
-            availability,
-          }),
-        });
-      }
-
-      Alert.alert("Saved", "Service created!");
-      navigation?.goBack?.();
-    } catch (e) {
-      Alert.alert("Error", String(e.message || e));
+    if (images && images.length > 0) {
+      images.forEach((img, idx) => {
+        const uri = img.uri || img;
+        const filename = uri.split("/").pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : "image/jpeg";
+        fd.append("images", { uri, name: filename, type });
+      });
     }
-  };
+
+    await api("/services/", {
+      method: "POST",
+      body: fd,
+      // Do NOT set 'Content-Type' — let fetch handle it automatically
+    });
+
+    Alert.alert("Saved", "Service created!");
+    navigation?.goBack?.();
+  } catch (e) {
+    console.error("Save error:", e);
+    Alert.alert("Error", e?.message || "Something went wrong");
+  }
+};
 
   return (
     <SafeAreaView style={styles.safe}>

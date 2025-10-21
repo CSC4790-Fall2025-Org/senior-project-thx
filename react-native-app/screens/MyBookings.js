@@ -1,35 +1,82 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, Alert, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AppStyles, { colors } from '../styles/AppStyles';
 import BookingCard from '../styles/BookingCard';
 import Feather from 'react-native-vector-icons/Feather';
+import { api } from '../src/api';
 
 const { width, height } = Dimensions.get('window');
 
 // Sample booking data
-const initialBookingsData = [
-  {
-    id: '1',
-    image: require('../assets/haircuts.jpg'),
-    service: 'Haircuts',
-    stylist: "Hairstylists’ Name",
-    date: 'Mar 22, 2025',
-    time: '10:00 AM',
-  },
-  { id: '2', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
-  { id: '3', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
-  { id: '4', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
-  { id: '5', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
-  { id: '6', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
-];
+// const initialBookingsData = [
+//   {
+//     id: '1',
+//     image: require('../assets/haircuts.jpg'),
+//     service: 'Haircuts',
+//     stylist: "Hairstylists’ Name",
+//     date: 'Mar 22, 2025',
+//     time: '10:00 AM',
+//   },
+//   { id: '2', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
+//   { id: '3', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
+//   { id: '4', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
+//   { id: '5', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
+//   { id: '6', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
+// ];
 
 export default function MyBookings({ navigation }) {
-  const [bookingsData, setBookingsData] = useState(initialBookingsData);
+  const [bookingsData, setBookingsData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch bookings from backend API on mount
+  const fetchBookings = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api('/bookings/'); // Fetch backend data with service_name included
+
+      const mappedData = data.map(item => ({
+        id: String(item.id),
+        service: item.service_name || "Unknown Service",
+        stylist: item.provider_name || "",
+        date: item.time_detail?.date || "",
+        time: formatTimeRange(item.time_detail?.start_time, item.time_detail?.end_time),
+        image: require('../assets/haircuts.jpg'),
+      }));
+
+      setBookingsData(mappedData);
+    } catch (err) {
+      setError(err.message || 'Failed to fetch bookings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchBookings();
+    }, [])
+  );
+  
+  const formatTimeRange = (start, end) => {
+    if (!start || !end) return "Unknown time";
+
+    const format = (timeStr) => {
+      const [hour, min] = timeStr.split(':');
+      let hourNum = parseInt(hour, 10);
+      const ampm = hourNum >= 12 ? 'PM' : 'AM';
+      hourNum = hourNum % 12 || 12;
+      return `${hourNum}:${min} ${ampm}`;
+    };
+
+    return `${format(start)} - ${format(end)}`;
+  };
 
   const handleDeleteBooking = (id) => {
-    // Only show the confirmation ONCE, then remove and show "Deleted" alert
     Alert.alert(
       "Delete Booking",
       "Are you sure you want to delete this booking?",
@@ -38,23 +85,82 @@ export default function MyBookings({ navigation }) {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => {
-            setBookingsData(prev =>
-              prev.filter(booking => booking.id !== id)
-            );
-            // Only show this confirmation after deletion
-            setTimeout(() => {
-              Alert.alert(
-                "Deleted",
-                `Booking ID ${id} was successfully deleted.`,
-                [{ text: "OK" }]
-              );
-            }, 100); // slight delay to avoid alert stacking
+          onPress: async () => {
+            try {
+              // Call backend delete
+              await api(`/bookings/${id}/`, { method: 'DELETE' });
+  
+              // Only update UI after successful delete
+              setBookingsData(prev => prev.filter(booking => booking.id !== id));
+              
+              Alert.alert("Deleted", `Booking ID ${id} was successfully deleted.`, [{ text: "OK" }]);
+            } catch (error) {
+              Alert.alert("Error", error.message || "Failed to delete booking");
+            }
           }
         }
       ]
     );
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={colors.gradientStart} />
+        <Text>Loading your bookings...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <Text style={{ color: 'red' }}>{error}</Text>
+        <TouchableOpacity onPress={() => {
+          setLoading(true);
+          setError(null);
+          api.get('/myBookings/').then(response => {
+            setBookingsData(response.data);
+            setLoading(false);
+          }).catch(() => {
+            setError('Failed to load bookings.');
+            setLoading(false);
+          });
+        }}>
+          <Text style={{ color: colors.gradientStart, marginTop: 10 }}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  // const [bookingsData, setBookingsData] = useState(initialBookingsData);
+
+  // const handleDeleteBooking = (id) => {
+  //   // Only show the confirmation ONCE, then remove and show "Deleted" alert
+  //   Alert.alert(
+  //     "Delete Booking",
+  //     "Are you sure you want to delete this booking?",
+  //     [
+  //       { text: "Cancel", style: "cancel" },
+  //       {
+  //         text: "Delete",
+  //         style: "destructive",
+  //         onPress: () => {
+  //           setBookingsData(prev =>
+  //             prev.filter(booking => booking.id !== id)
+  //           );
+  //           // Only show this confirmation after deletion
+  //           setTimeout(() => {
+  //             Alert.alert(
+  //               "Deleted",
+  //               `Booking ID ${id} was successfully deleted.`,
+  //               [{ text: "OK" }]
+  //             );
+  //           }, 100); // slight delay to avoid alert stacking
+  //         }
+  //       }
+  //     ]
+  //   );
+  // };
 
   return (
     <View style={styles.container}>
