@@ -45,7 +45,7 @@ export default function MyBookings({ navigation }) {
         stylist: item.provider_name || "",
         date: item.time_detail?.date || "",
         time: formatTimeRange(item.time_detail?.start_time, item.time_detail?.end_time),
-        image: require('../assets/haircuts.jpg'),
+        image: {uri: item.image},
       }));
 
       setBookingsData(mappedData);

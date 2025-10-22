@@ -141,6 +141,7 @@ class BookingSerializer(serializers.ModelSerializer):
     time = serializers.PrimaryKeyRelatedField(queryset=Availability.objects.all())
     time_detail = AvailabilitySerializer(source="time", read_only=True)
     customer_id = serializers.IntegerField(source="user_id", read_only=True)
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -156,11 +157,33 @@ class BookingSerializer(serializers.ModelSerializer):
             "customer_name",
             "customer_email",
             "created_at",
+            "image",
         ]
         read_only_fields = ["created_at"]
 
     def get_service_name(self, obj):
         return obj.service.name if obj.service else None
+        
+    def get_image(self, obj):
+        request = self.context.get('request')
+        service = obj.service
+        if not service:
+            return None
+
+        images = service.images.all()
+        if not images:
+            return None
+
+        first_image = images.first()
+        if not first_image or not first_image.image:
+            return None
+
+        image_url = first_image.image.url  # Correct reference to ImageField
+
+        if request:
+            return request.build_absolute_uri(image_url)
+
+        return image_url
 
     def validate(self, attrs):
         service = attrs.get("service")
