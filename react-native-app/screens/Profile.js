@@ -167,7 +167,6 @@ export default function Profile() {
         service_id: s.id,
         tag: s.type,
         price: Number(s.price),
-        providerName: updatedInfo||'',
       }));
 
       setUser({ ...updatedInfo, services });
@@ -179,7 +178,7 @@ export default function Profile() {
     }
   };
 
-  const isChanged = email !== originalEmail || location !== originalLocation;
+
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
