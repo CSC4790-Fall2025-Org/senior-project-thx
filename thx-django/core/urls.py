@@ -1,14 +1,17 @@
 from rest_framework import routers
 from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from django.contrib import admin
 
 from .views import ServiceViewSet, ServiceImageViewSet, BookingViewSet, ProfileMeView
 
-router = routers.DefaultRouter()
-router.register(r"services", ServiceViewSet, basename="service")
-router.register(r"service-images", ServiceImageViewSet, basename="service-image")
-router.register(r"bookings", BookingViewSet, basename="booking")
+router = DefaultRouter()
+router.register("services", ServiceViewSet, basename="service")
+router.register("service-images", ServiceImageViewSet, basename="service-image")
+router.register("bookings", BookingViewSet, basename="booking")
 
 urlpatterns = [
     path("", include(router.urls)),
     path("profile/me/", ProfileMeView.as_view(), name="profile-me"),
+    path('auth/', include('core.authentication.urls')), 
 ]

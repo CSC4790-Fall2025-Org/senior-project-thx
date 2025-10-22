@@ -1,5 +1,9 @@
-import { StyleSheet, Text, View, TouchableOpacity, Image, Dimensions,TextInput, KeyboardAvoidingView } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Image, Dimensions,TextInput, KeyboardAvoidingView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_HOST } from '../src/config';
+import { api } from '../src/api';
 
 
 const { height } = Dimensions.get('window');
@@ -7,6 +11,55 @@ const { height } = Dimensions.get('window');
 
 
 const Login = ({navigation}) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const handleLogin = async () => {
+        try {
+          const data = await api('/auth/login/', {
+            method: 'POST',
+            body: JSON.stringify({email, password }), // or email if backend supports it
+          });
+      
+          console.log('✅ LOGIN SUCCESS', data);
+      
+          await AsyncStorage.setItem('access_token', data.access);
+          await AsyncStorage.setItem('refresh_token', data.refresh);
+      
+          navigation.navigate('Home');
+        } catch (err) {
+          console.log('❌ LOGIN FAILED', err.message);
+          Alert.alert('Login Error', err.message);
+        }
+      };
+    // const handleLogin = async () => {
+    //     try {
+    //       const response = await fetch(`${API_HOST}/api/auth/login/`, {
+    //         method: 'POST',
+    //         headers: {
+    //           'Content-Type': 'application/json',
+    //         },
+    //         // Use the right key your backend expects (probably 'username' or 'email')
+    //         body: JSON.stringify({ email, password }),
+    //       });
+    
+    //       if (response.ok) {
+    //         const data = await response.json();
+    //         // Save tokens in AsyncStorage if your backend returns them
+    //         await AsyncStorage.setItem('access_token', data.access);
+    //         await AsyncStorage.setItem('refresh_token', data.refresh);
+    
+    //         // Navigate to Home screen on success
+    //         navigation.navigate('Home');
+    //       } else {
+    //         const errorData = await response.json();
+    //         Alert.alert('Login Failed', JSON.stringify(errorData));
+    //       }
+    //     } catch (error) {
+    //         console.log(error.message)
+    //         Alert.alert('Error', error.message);
+    //     }
+    //   };
+
     return (
         <KeyboardAvoidingView style = {styles.container}>
 
@@ -29,14 +82,26 @@ const Login = ({navigation}) => {
                     {/*EMAIL & PASS CONTENT*/}
                     <View style={styles.emailBox}>
                         <Text style = {styles.emailText}>Email Address</Text>
-                        <TextInput style={styles.emailInput}/>
+                        <TextInput 
+                            style={styles.emailInput}
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                        />
                     </View>
                     <View style={styles.passBox}>
                     <Text style = {styles.passText}>Password</Text>
-                        <TextInput style={styles.passInput} secureTextEntry={true}/>
+                        <TextInput 
+                            style={styles.passInput}
+                            secureTextEntry={true}
+                            value={password}
+                            onChangeText={setPassword}
+                        />
                     </View>
 
-                    <TouchableOpacity style = {styles.loginButton} onPress={() => navigation.navigate('Home')}>
+                    <TouchableOpacity style = {styles.loginButton} onPress={handleLogin}>
                         <Text style = {styles.loginText}>Login</Text>
                     </TouchableOpacity>
 
