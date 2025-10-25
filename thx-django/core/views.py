@@ -3,10 +3,12 @@ from rest_framework import viewsets, status, mixins
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser, FormParser
+# accept JSON as well as multipart/form-data
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
+import logging
 
 from .models import Service, Availability, Booking, ServiceImage
 from .serializers import (
@@ -17,7 +19,10 @@ from .serializers import (
     get_active_demo_user,
 )
 
-# User = get_user_model()
+logger = logging.getLogger(__name__)
+
+# Ensure User is available for resolve_request_user
+User = get_user_model()
 
 
 def resolve_request_user(request):
@@ -44,19 +49,44 @@ def resolve_request_user(request):
 class ProfileMeView(APIView):
     """
     GET   /api/profile/me/   -> demo profile + demo services
-    PATCH /api/profile/me/   -> update demo profile fields
+    PATCH /api/profile/me/   -> update demo profile fields (accepts multipart for file uploads and JSON)
     """
+    # Allow multipart/form-data uploads (files) AND JSON requests
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+
     def get(self, request):
-        user = request.user
+        # Resolve the effective user (supports demo/header fallback when unauthenticated)
+        user = resolve_request_user(request)
         ser = UserMeSerializer(user, context={"request": request})
         return Response(ser.data)
 
     def patch(self, request):
-        user = request.user
+        # DEBUG: log incoming raw data to help troubleshoot why 'name' isn't persisting
+        try:
+            logger.debug("[ProfileMeView.patch] REQUEST.DATA: %s", request.data)
+        except Exception:
+            # keep logging safe
+            logger.debug("[ProfileMeView.patch] REQUEST.DATA unreadable")
+
+        # Resolve the effective user so we don't pass AnonymousUser to the serializer
+        user = resolve_request_user(request)
+
         ser = UserMeSerializer(user, data=request.data, partial=True, context={"request": request})
-        ser.is_valid(raise_exception=True)
+        if not ser.is_valid():
+            # Log validation errors and the raw incoming data
+            logger.warning("[ProfileMeView.patch] serializer invalid. errors=%s request.data=%s", ser.errors, request.data)
+            return Response({"detail": "Invalid data", "errors": ser.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Log validated data before saving
+        logger.debug("[ProfileMeView.patch] validated_data: %s", ser.validated_data)
+
         ser.save()
-        return Response(ser.data, status=status.HTTP_200_OK)
+
+        # After save, re-serialize and log the resulting data returned to client
+        out = UserMeSerializer(user, context={"request": request}).data
+        logger.debug("[ProfileMeView.patch] saved. returning: %s", out)
+
+        return Response(out, status=status.HTTP_200_OK)
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
