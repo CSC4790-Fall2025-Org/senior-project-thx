@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, Dimensions, TouchableOpacity, TextInput, Image, FlatList } from 'react-native'; 
+import React, { useEffect, useState, useCallback } from 'react';
+import { StyleSheet, Text, View, Dimensions, TouchableOpacity, TextInput, Image, FlatList, ActivityIndicator } from 'react-native'; 
 import { LinearGradient } from 'expo-linear-gradient'; 
 import EvilIcons from 'react-native-vector-icons/EvilIcons'; 
 import Ionicons from 'react-native-vector-icons/Ionicons'; 
@@ -7,6 +8,8 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import ServiceList from '../components/ServiceList'; 
 import { dummyData } from '../data/Dummy'; 
+import { api } from '../src/api';
+import { API_BASE } from '../src/config';
 
 const { height } = Dimensions.get('window'); 
 
@@ -18,6 +21,13 @@ const services = [
     { id: 5, name: 'Makeup', iconLib: 'FontAwesome5', iconName: 'palette' }, 
 ]; 
 
+const buildAbsolute = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  const host = API_BASE.replace(/\/api\/?$/, '');
+  return `${host}${url}`;
+};
+
 const SavedServices = ({navigation}) => { 
     const flattenedServices = dummyData.flatMap(provider => 
     provider.services.map(service => ({ 
@@ -27,6 +37,27 @@ const SavedServices = ({navigation}) => {
       id: `${provider.id}-${service.service}`,  
     })) 
     ); 
+
+    const [profileImageUri, setProfileImageUri] = useState(null);
+    const [loadingProfile, setLoadingProfile] = useState(true);
+
+    const fetchProfile = useCallback(async () => {
+      setLoadingProfile(true);
+      try {
+        const profile = await api('/profile/me/');
+        const raw = profile.profile_picture || profile.avatar || profile.image || profile.profile_image || profile.photo || null;
+        const rawUrl = typeof raw === 'string' ? raw : (raw && (raw.url || raw.uri));
+        setProfileImageUri(buildAbsolute(rawUrl || '') || null);
+      } catch (e) {
+        // ignore
+      } finally {
+        setLoadingProfile(false);
+      }
+    }, []);
+
+    useEffect(() => {
+      fetchProfile();
+    }, [fetchProfile]);
 
     const renderIcon = (item, size = 30, color = '#333') => {
       const { iconLib, iconName } = item;
@@ -55,7 +86,19 @@ const SavedServices = ({navigation}) => {
                 end={{ x: 1, y: 0 }} 
             > 
                 <Text style= {styles.helloText}>Hello MyAllRaAby!</Text> 
-                <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}></TouchableOpacity> 
+
+                {/* Avatar with pink outer background and white inner circle (image or emoji) */}
+                <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}>
+                  <View style={styles.avatarOuter}>
+                    <View style={styles.avatarInner}>
+                      {profileImageUri ? (
+                        <Image source={{ uri: profileImageUri }} style={styles.profileImage} />
+                      ) : (
+                        <Text style={styles.profileEmoji}>🙂</Text>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity> 
                 
                 {/* FILTERS */} 
                 <TouchableOpacity style ={styles.filterFrame}> 
@@ -159,11 +202,16 @@ const styles = StyleSheet.create({
         position: 'absolute', 
         right:'4.6%', 
         top: '35%', 
-        height: 50, 
-        width: 50, 
-        borderRadius: 50, 
-        backgroundColor: '#FFFFFF', 
+        height: 56, 
+        width: 56, 
+        borderRadius: 56, 
+        alignItems: 'center', 
+        justifyContent: 'center' 
     }, 
+    avatarOuter: { width: 56, height: 56, borderRadius: 56, backgroundColor: 'rgba(237,118,120,0.12)', alignItems: 'center', justifyContent: 'center' },
+    avatarInner: { width: 48, height: 48, borderRadius: 48, backgroundColor: '#fff', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+    profileImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+    profileEmoji: { fontSize: 26, lineHeight: 48, includeFontPadding: false, textAlign: 'center' },
     filterFrame: { 
         position: 'absolute', 
         right:'5.2%', 
@@ -246,13 +294,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8, 
     }, 
     iconWrapper: { justifyContent: 'center', alignItems: 'center' },
-    serviceTypeText: { 
-        marginTop: 8, 
-        textAlign: 'center', 
-        fontSize: 13, 
-        fontFamily: 'Poppins', 
-        color: '#594C46', 
-    }, 
+    serviceTypeText: { marginTop: 8, textAlign: 'center', fontSize: 13, fontFamily: 'Poppins', color: '#594C46' },
     serviceContainer:{ 
         flex: 1, 
         paddingHorizontal: 20, 
@@ -271,66 +313,6 @@ const styles = StyleSheet.create({
     servicesScroll: { 
         paddingBottom: 90, 
         gap: 10, 
-    }, 
-    serviceCard: { 
-        height: 150, 
-        width: 350, 
-        borderRadius: 15, 
-        backgroundColor: '#fff', 
-        alignSelf: 'center', 
-        justifyContent: 'center', 
-        borderBottomColor: '#ccc', 
-        borderBottomWidth: 2, 
-    }, 
-    cardContent: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        padding: 15, 
-    }, 
-    serviceImage: { 
-        width: 120, 
-        height: 120, 
-        borderRadius: 10, 
-        marginRight: 15, 
-    }, 
-    serviceInfo: { 
-        flex: 1, 
-    }, 
-    serviceType: { 
-        fontSize: 16, 
-        fontWeight: 'semibold', 
-        fontFamily: 'Poppins', 
-        color: '#1E1E1E', 
-        marginBottom: 5, 
-    }, 
-    providerName: { 
-        fontSize: 13, 
-        fontWeight: 'medium', 
-        fontFamily: 'Poppins', 
-        color: '#555', 
-        marginBottom: 5, 
-    }, 
-    serviceCost: { 
-        fontSize: 18, 
-        fontFamily: 'Poppins', 
-        fontWeight: 'bold', 
-        color: '#000000', 
-        marginBottom: 10, 
-    }, 
-    bookButton: { 
-        alignSelf: 'flex-start', 
-        position: 'absolute', 
-        right: '5.8%', 
-        top: '60%', 
-        backgroundColor: '#ED7678', 
-        paddingHorizontal: 15, 
-        paddingVertical: 5, 
-        borderRadius: 10, 
-    }, 
-    bookButtonText: { 
-        fontFamily: 'Poppins', 
-        fontSize: 12, 
-        color: '#FFFFFF', 
     }, 
     navBarContainer: { 
         height: '9%', 

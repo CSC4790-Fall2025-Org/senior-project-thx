@@ -25,7 +25,6 @@ const DEMO_HEADERS = {};
 const buildAbsolute = (url) => {
   if (!url) return null;
   if (url.startsWith('http')) return url;
-  // Remove trailing /api from API_BASE then prefix
   const host = API_BASE.replace(/\/api\/?$/, '');
   return `${host}${url}`;
 };
@@ -33,6 +32,7 @@ const buildAbsolute = (url) => {
 const Home = ({navigation}) => { 
     const [profileLoading, setProfileLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState(null);
+    const [profileImageUri, setProfileImageUri] = useState(null);
 
     const [services, setServices] = useState([]);
     const [searchText, setSearchText] = useState('');
@@ -64,7 +64,6 @@ const Home = ({navigation}) => {
         if (showSpinner) setLoading(true);
         const data = await api(`/services/${queryString}`, { headers: { ...DEMO_HEADERS } });
         const normalized = (Array.isArray(data) ? data : []).map((svc) => {
-            console.log('Fetched service:', svc);
             // pick first image if present
             const firstImage = Array.isArray(svc.images) && svc.images.length ? svc.images[0] : null;
             const imageUrl = firstImage ? (typeof firstImage === 'string' ? buildAbsolute(firstImage) : buildAbsolute(firstImage.url)) : null;
@@ -80,16 +79,10 @@ const Home = ({navigation}) => {
             };
         });
 
-        console.log('Filtering services, currentUserId:', currentUserId);
-        normalized.forEach(svc => {
-            console.log('Service ownerId:', svc.ownerId, 'Match?', String(svc.ownerId) === String(currentUserId));
-        });
-
         const filtered = currentUserId
             ? normalized.filter(service => String(service.ownerId).trim() !== String(currentUserId).trim())
             : normalized;
 
-        // setServices(normalized);
         setServices(filtered);
 
 
@@ -100,19 +93,25 @@ const Home = ({navigation}) => {
         }
     }, [queryString, currentUserId]);
 
-    useEffect(() => {
-        (async () => {
-          try {
-            const profile = await api('/profile/me/');
-            setCurrentUserId(profile.id); // or profile.user_id depending on your API
-          } catch (e) {
-            console.warn('Failed to load user profile for filtering');
-          }finally {
-            setProfileLoading(false);
-          }
-          
-        })();
+    // fetch profile (used on mount and on focus when returning to screen)
+    const fetchProfile = useCallback(async () => {
+      setProfileLoading(true);
+      try {
+        const profile = await api('/profile/me/');
+        setCurrentUserId(profile.id);
+        const raw = profile.profile_picture || profile.avatar || profile.image || profile.profile_image || profile.photo || null;
+        const rawUrl = typeof raw === 'string' ? raw : (raw && (raw.url || raw.uri));
+        setProfileImageUri(buildAbsolute(rawUrl || '') || null);
+      } catch (e) {
+        console.warn('Failed to load user profile for filtering', e);
+      } finally {
+        setProfileLoading(false);
+      }
     }, []);
+
+    useEffect(() => {
+        fetchProfile();
+    }, [fetchProfile]);
 
     useEffect(() => {
         if (!profileLoading && currentUserId !== null) {
@@ -123,12 +122,14 @@ const Home = ({navigation}) => {
 
     useEffect(() => {
         const unsubscribe = navigation.addListener('focus', () => {
+          // refresh profile image and services on returning to Home
+          fetchProfile();
           if (currentUserId !== null) {
             fetchServices(true);
           }
         });
         return unsubscribe;
-    }, [navigation, fetchServices, currentUserId]);
+    }, [navigation, fetchServices, currentUserId, fetchProfile]);
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -177,7 +178,6 @@ const Home = ({navigation}) => {
     };
 
     const renderService = ({ item }) => {
-        console.log('Rendering service:', item);
         return(
         <View style={styles.serviceCard}>
         <View style={styles.cardContent}>
@@ -221,7 +221,19 @@ const Home = ({navigation}) => {
                 end={{ x: 1, y: 0 }} 
             > 
                 <Text style= {styles.helloText}>Hello!</Text> 
-                <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}></TouchableOpacity> 
+
+                {/* Avatar with pink outer background and white inner circle (image or emoji) */}
+                <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}>
+                  <View style={styles.avatarOuter}>
+                    <View style={styles.avatarInner}>
+                      {profileImageUri ? (
+                        <Image source={{ uri: profileImageUri }} style={styles.profileImage} />
+                      ) : (
+                        <Text style={styles.profileEmoji}>🙂</Text>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity> 
                 
                 <View style ={styles.textInputBox}> 
                     <View style ={styles.searchIcon}> 
@@ -315,7 +327,14 @@ const styles = StyleSheet.create({
   // LINEAR GRADIENT CONTENT
   gradient: { height: height * 0.245, width: '100%', position: 'relative', top: 0, left: 0, zIndex: 1 },
   helloText: { position: 'absolute', left: '4.6%', top: '42.8%', fontSize: 20, fontWeight: 'bold', fontFamily: 'Poppins' },
-  profileFrame: { position: 'absolute', right: '4.6%', top: '35%', height: 50, width: 50, borderRadius: 50, backgroundColor: '#FFFFFF' },
+
+  // avatar/frame
+  profileFrame: { position: 'absolute', right: '4.6%', top: '35%', height: 56, width: 56, borderRadius: 56, alignItems: 'center', justifyContent: 'center' },
+  avatarOuter: { width: 56, height: 56, borderRadius: 56, backgroundColor: 'rgba(237,118,120,0.12)', alignItems: 'center', justifyContent: 'center' },
+  avatarInner: { width: 48, height: 48, borderRadius: 48, backgroundColor: '#fff', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  profileImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  profileEmoji: { fontSize: 26, lineHeight: 48, includeFontPadding: false, textAlign: 'center' },
+
   filterFrame: { position: 'absolute', right: '5.2%', top: '63.2%', height: 47, width: 47, borderRadius: 10, backgroundColor: '#F6C484' },
   filterIcon: { position: 'absolute', left: '23.5%', top: '23.5%', height: 25, width: 25 },
   textInputBox: { position: 'absolute', left: '4.6%', top: '63.6%', height: 47, width: 375, borderRadius: 10, backgroundColor: '#FFFFFF' },

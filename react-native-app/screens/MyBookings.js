@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, Alert, ActivityIndicator, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,30 +7,23 @@ import AppStyles, { colors } from '../styles/AppStyles';
 import BookingCard from '../styles/BookingCard';
 import Feather from 'react-native-vector-icons/Feather';
 import { api } from '../src/api';
+import { API_BASE } from '../src/config';
 
 const { width, height } = Dimensions.get('window');
 
-// Sample booking data
-// const initialBookingsData = [
-//   {
-//     id: '1',
-//     image: require('../assets/haircuts.jpg'),
-//     service: 'Haircuts',
-//     stylist: "Hairstylists’ Name",
-//     date: 'Mar 22, 2025',
-//     time: '10:00 AM',
-//   },
-//   { id: '2', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
-//   { id: '3', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
-//   { id: '4', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
-//   { id: '5', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
-//   { id: '6', image: require('../assets/haircuts.jpg'), service: 'Haircuts', stylist: "Hairstylists’ Name", date: 'Mar 22, 2025', time: '10:00 AM'},
-// ];
+const buildAbsolute = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  const host = API_BASE.replace(/\/api\/?$/, '');
+  return `${host}${url}`;
+};
 
 export default function MyBookings({ navigation }) {
   const [bookingsData, setBookingsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [profileImageUri, setProfileImageUri] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   // Fetch bookings from backend API on mount
   const fetchBookings = async () => {
@@ -45,7 +38,7 @@ export default function MyBookings({ navigation }) {
         stylist: item.provider_name || "",
         date: item.time_detail?.date || "",
         time: formatTimeRange(item.time_detail?.start_time, item.time_detail?.end_time),
-        image: {uri: item.image},
+        image: { uri: item.image },
       }));
 
       setBookingsData(mappedData);
@@ -56,10 +49,33 @@ export default function MyBookings({ navigation }) {
     }
   };
 
+  const fetchProfile = useCallback(async () => {
+    setProfileLoading(true);
+    try {
+      const profile = await api('/profile/me/');
+      const raw = profile.profile_picture || profile.avatar || profile.image || profile.profile_image || profile.photo || null;
+      const rawUrl = typeof raw === 'string' ? raw : (raw && (raw.url || raw.uri));
+      setProfileImageUri(buildAbsolute(rawUrl || '') || null);
+    } catch (e) {
+      // ignore
+    } finally {
+      setProfileLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      await fetchProfile();
+      fetchBookings();
+    })();
+  }, [fetchProfile]);
+
   useFocusEffect(
     useCallback(() => {
+      // refresh profile image when screen gains focus (keeps it in sync with Profile page)
+      fetchProfile();
       fetchBookings();
-    }, [])
+    }, [fetchProfile])
   );
   
   const formatTimeRange = (start, end) => {
@@ -119,48 +135,13 @@ export default function MyBookings({ navigation }) {
         <TouchableOpacity onPress={() => {
           setLoading(true);
           setError(null);
-          api.get('/myBookings/').then(response => {
-            setBookingsData(response.data);
-            setLoading(false);
-          }).catch(() => {
-            setError('Failed to load bookings.');
-            setLoading(false);
-          });
+          fetchBookings();
         }}>
           <Text style={{ color: colors.gradientStart, marginTop: 10 }}>Try Again</Text>
         </TouchableOpacity>
       </View>
     );
   }
-  // const [bookingsData, setBookingsData] = useState(initialBookingsData);
-
-  // const handleDeleteBooking = (id) => {
-  //   // Only show the confirmation ONCE, then remove and show "Deleted" alert
-  //   Alert.alert(
-  //     "Delete Booking",
-  //     "Are you sure you want to delete this booking?",
-  //     [
-  //       { text: "Cancel", style: "cancel" },
-  //       {
-  //         text: "Delete",
-  //         style: "destructive",
-  //         onPress: () => {
-  //           setBookingsData(prev =>
-  //             prev.filter(booking => booking.id !== id)
-  //           );
-  //           // Only show this confirmation after deletion
-  //           setTimeout(() => {
-  //             Alert.alert(
-  //               "Deleted",
-  //               `Booking ID ${id} was successfully deleted.`,
-  //               [{ text: "OK" }]
-  //             );
-  //           }, 100); // slight delay to avoid alert stacking
-  //         }
-  //       }
-  //     ]
-  //   );
-  // };
 
   return (
     <View style={styles.container}>
@@ -182,8 +163,14 @@ export default function MyBookings({ navigation }) {
           onPress={() => navigation.navigate('Profile')}
           activeOpacity={0.8}
         >
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarIcon}>🙂</Text>
+          <View style={styles.avatarOuter}>
+            <View style={styles.avatarInner}>
+              {profileImageUri ? (
+                <Image source={{ uri: profileImageUri }} style={{ width: '100%', height: '100%' }} />
+              ) : (
+                <Text style={styles.avatarIcon}>🙂</Text>
+              )}
+            </View>
           </View>
         </TouchableOpacity>
       </LinearGradient>
@@ -266,16 +253,13 @@ const styles = StyleSheet.create({
     top: height * 0.06,
     zIndex: 1,
   },
-  avatarCircle: {
-    width: width * 0.12,
-    height: width * 0.12,
-    borderRadius: width * 0.06,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  avatarOuter: { width: width * 0.12, height: width * 0.12, borderRadius: width * 0.06, backgroundColor: 'rgba(237,118,120,0.12)', alignItems: 'center', justifyContent: 'center' },
+  avatarInner: { width: width * 0.096, height: width * 0.096, borderRadius: (width * 0.096) / 2, backgroundColor: '#fff', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   avatarIcon: {
     fontSize: width * 0.06,
+    lineHeight: width * 0.096,
+    includeFontPadding: false,
+    textAlign: 'center',
   },
   content: {
     marginTop: height * 0.02,
