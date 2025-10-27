@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.exceptions import ParseError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
@@ -11,21 +12,18 @@ import logging
 import json
 from datetime import datetime, date, time
 from typing import List, Dict, Any
-
 from .models import Service, Availability, Booking, ServiceImage
 from .serializers import (
     UserMeSerializer,
     ServiceSerializer,
     BookingSerializer,
     ServiceImageSerializer,
-    get_active_demo_user,
 )
 
 logger = logging.getLogger(__name__)
 
 # Ensure User is available for resolve_request_user
 User = get_user_model()
-
 
 def resolve_request_user(request):
     """
@@ -143,7 +141,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
         data = request.data.copy()
         serializer = self.get_serializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-
         service = serializer.save()  # user handled in serializer.create
 
         files = request.FILES.getlist("images")
@@ -215,15 +212,25 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = resolve_request_user(self.request)
-        return self.queryset.filter(user=user)
+        role = (self.request.query_params.get("role")
+                or self.request.headers.get("X-Bookings-Role")
+                or "client").lower()
+
+        if role not in {"client", "provider"}:
+            raise ParseError(detail="Invalid role. Use 'client' or 'provider'.")
+
+        qs = self.queryset
+        if role == "provider":
+            # Bookings made on services that this user provides
+            return qs.filter(service__user=user)
+        # role == "client" (default): bookings this user made
+        return qs.filter(user=user)
 
     def create(self, request, *args, **kwargs):
-        # attach user resolved from request
         user = resolve_request_user(request)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Optional: sanity check availability exists
         availability_id = serializer.validated_data["time"].id
         _ = get_object_or_404(Availability, id=availability_id)
 
@@ -232,6 +239,8 @@ class BookingViewSet(viewsets.ModelViewSet):
         return Response(out.data, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()  # respects get_queryset scoping to current user
+        # NOTE: Deletion remains scoped to client-owned bookings.
+        # Providers won't be able to delete client bookings through this action.
+        instance = self.get_object()
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
