@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
+import { useWindowDimensions, Platform } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Icon from "react-native-vector-icons/Ionicons";
 
@@ -37,6 +38,9 @@ const serializeAvailabilityISO = (slotsByDate) =>
   );
 
 export default function AddServices({ navigation }) {
+  const { height: winH } = useWindowDimensions();
+  // 50% of screen height, but never shorter than 320
+  const sheetHeight = Math.max(320, Math.round(winH * 0.5));
   const [service, setService] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
@@ -268,22 +272,40 @@ export default function AddServices({ navigation }) {
         </ScrollView>
 
         {/* Time Picker Modal */}
-        <Modal visible={timeModalVisible} animationType="slide" transparent onRequestClose={closeTimeModal}>
-          <View style={styles.modalBackdrop}>
-            <View style={styles.timeSheet}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={closeTimeModal}>
-                  <Text style={styles.cancelBtn}>Cancel</Text>
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>Select time</Text>
-                <TouchableOpacity onPress={commitTimeChange}>
-                  <Text style={styles.doneBtn}>Done</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker value={tempTime} mode="time" display="spinner" onChange={(_, d) => d && setTempTime(d)} style={{ alignSelf: "stretch" }} />
-            </View>
-          </View>
-        </Modal>
+        <Modal
+  visible={timeModalVisible}
+  animationType="slide"
+  transparent
+  onRequestClose={closeTimeModal}
+>
+  <View style={styles.modalBackdrop}>
+    <View style={[styles.timeSheet, { height: sheetHeight }]}>
+      <View style={styles.modalHeader}>
+        <TouchableOpacity onPress={closeTimeModal}>
+          <Text style={styles.cancelBtn}>Cancel</Text>
+        </TouchableOpacity>
+        <Text style={styles.modalTitle}>Select time</Text>
+        <TouchableOpacity onPress={commitTimeChange}>
+          <Text style={styles.doneBtn}>Done</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Picker container (fills sheet space) */}
+      <View style={{ flex: 1, alignSelf: "stretch" }}>
+        <DateTimePicker
+          value={tempTime}
+          mode="time"
+          display="spinner"
+          onChange={(_, d) => {
+            if (d) setTempTime(d);
+          }}
+          style={{ flex: 1, alignSelf: "stretch" }}
+        />
+      </View>
+    </View>
+  </View>
+</Modal>
+
 
         {/* Tag Picker Modal */}
         <Modal visible={tagPickerVisible} animationType="slide" transparent onRequestClose={() => setTagPickerVisible(false)}>
@@ -411,7 +433,14 @@ const styles = StyleSheet.create({
   saveText: { fontWeight: "700", color: "white", fontSize: 16 },
 
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  timeSheet: { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 24, paddingHorizontal: 12 },
+  timeSheet: {
+      backgroundColor: "#fff",
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      paddingBottom: 24,
+      paddingHorizontal: 12,
+      // height is set dynamically from window size
+    },
   modalHeader: {
     paddingHorizontal: 8, paddingTop: 12, paddingBottom: 8,
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
