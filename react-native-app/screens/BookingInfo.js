@@ -10,11 +10,14 @@ import {
   KeyboardAvoidingView,
   Alert,
   ActivityIndicator,
+  Modal,
+  Dimensions,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Calendar } from "react-native-calendars";
 import { api } from "../src/api";
 
+const { height } = Dimensions.get("window");
 const DEMO_HEADERS = {};
 
 const toTimeLabel = (hhmmss) => {
@@ -64,6 +67,9 @@ export default function BookingInfo({ navigation, route }) {
   // Calendar & chip state
   const [selectedDate, setSelectedDate] = useState(firstDateKey(availabilityMap) || new Date().toISOString().slice(0, 10));
   const [selectedSlotId, setSelectedSlotId] = useState(null);
+
+  // NEW: time slot modal visibility
+  const [slotModalVisible, setSlotModalVisible] = useState(false);
 
   // If slots change and current date is no longer present, reset selection to first available
   useEffect(() => {
@@ -138,17 +144,15 @@ export default function BookingInfo({ navigation, route }) {
 
     try {
       setSubmitting(true);
-      const res = await api("/bookings/", {
+      await api("/bookings/", {
         method: "POST",
         body: JSON.stringify(payload),
         headers: { ...DEMO_HEADERS },
       });
-      // After booking, refetch in case user stays here
       await fetchSlots();
       Alert.alert("Booked!", "Your appointment has been created.", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
-      // console.log("Booking created:", res);
     } catch (e) {
       Alert.alert("Booking failed", e?.message?.toString() || "Please try again.");
     } finally {
@@ -260,7 +264,29 @@ export default function BookingInfo({ navigation, route }) {
                 />
               </View>
 
-              {/* Time chips */}
+              {/* Button to open modal selector */}
+              <View style={{ marginTop: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setSlotModalVisible(true)}
+                  style={{
+                    alignSelf: "flex-start",
+                    backgroundColor: "#F3F4F6",
+                    borderWidth: 1,
+                    borderColor: "#E5E7EB",
+                    borderRadius: 10,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                  }}
+                >
+                  <Text style={{ color: "#111827" }}>
+                    {selectedSlotId
+                      ? `Change time (${toTimeLabel((daySlots.find(s => s.id === selectedSlotId) || {}).start_time)})`
+                      : "Choose a time"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Inline time chips (keep as an alternative quick picker) */}
               {daySlots.length > 0 ? (
                 <View style={styles.timeListCard}>
                   <View style={styles.chipsRow}>
@@ -300,6 +326,73 @@ export default function BookingInfo({ navigation, route }) {
 
           <View style={{ height: 40 }} />
         </ScrollView>
+
+        {/* ===== Time Slot Modal (percentage-height bottom sheet) ===== */}
+        <Modal
+          visible={slotModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setSlotModalVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View
+              style={[
+                styles.slotSheet,
+                { height: Math.max(320, Math.round(height * 0.5)) }, // ~50% of screen, min 320
+              ]}
+            >
+              {/* Header */}
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setSlotModalVisible(false)}>
+                  <Text style={styles.cancelBtn}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Select a time</Text>
+                <TouchableOpacity onPress={() => setSlotModalVisible(false)}>
+                  <Text style={styles.doneBtn}>
+                    {selectedSlotId ? "Done" : "Close"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Date label (optional) */}
+              <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+                <Text style={{ color: "#6B7280" }}>{selectedDate}</Text>
+              </View>
+
+              {/* Time chips list (fills the sheet) */}
+              <View style={{ flex: 1, paddingHorizontal: 12 }}>
+                {daySlots.length > 0 ? (
+                  <View style={styles.chipsRow}>
+                    {daySlots.map((slot) => {
+                      const selected = selectedSlotId === slot.id;
+                      return (
+                        <TouchableOpacity
+                          key={slot.id}
+                          style={[styles.timeChip, selected && styles.timeChipSelected]}
+                          onPress={() => setSelectedSlotId(slot.id)}
+                          activeOpacity={0.9}
+                        >
+                          <Text
+                            style={[
+                              styles.timeChipText,
+                              selected && styles.timeChipTextSelected,
+                            ]}
+                          >
+                            {toTimeLabel(slot.start_time)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
+                    <Text style={{ color: "#6B7280" }}>No times available for this date.</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -397,4 +490,28 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   saveText: { fontWeight: "700", color: "white", fontSize: 16 },
+
+  /* ---- NEW: modal styles ---- */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  slotSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalTitle: { fontWeight: "700", fontSize: 16 },
+  cancelBtn: { color: "#6B7280", fontSize: 16 },
+  doneBtn: { color: "#ff6b8a", fontSize: 16, fontWeight: "700" },
 });

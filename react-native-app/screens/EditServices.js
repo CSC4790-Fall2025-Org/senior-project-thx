@@ -15,6 +15,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
+import { useWindowDimensions, Platform } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Icon from "react-native-vector-icons/Ionicons";
 import ImageGalleryPicker from "../components/ImageGalleryPicker";
@@ -101,6 +102,9 @@ const toTimeLabel = (d) => {
 };
 
 export default function EditServices({ navigation, route }) {
+  const { height: winH } = useWindowDimensions();
+  // Half the screen height, but never less than 320
+  const sheetHeight = Math.max(320, Math.round(winH * 0.5));
   const params = route?.params || {};
   const serviceId = params.serviceId ?? params.service_id; // supports either
   console.log("EditServices route params:", params, "→ serviceId:", serviceId);
@@ -463,7 +467,12 @@ export default function EditServices({ navigation, route }) {
           onRequestClose={closeTimeModal}
         >
           <View style={styles.modalBackdrop}>
-            <View style={styles.timeSheet}>
+            <View
+              style={[
+                styles.timeSheet,
+                { height: Math.max(320, Math.round(height * 0.5)) }, // ~50% of screen, min 320
+              ]}
+            >
               <View style={styles.modalHeader}>
                 <TouchableOpacity onPress={closeTimeModal}>
                   <Text style={styles.cancelBtn}>Cancel</Text>
@@ -473,13 +482,19 @@ export default function EditServices({ navigation, route }) {
                   <Text style={styles.doneBtn}>Done</Text>
                 </TouchableOpacity>
               </View>
-              <DateTimePicker
-                value={tempTime}
-                mode="time"
-                display="spinner"
-                onChange={(_, d) => d && setTempTime(d)}
-                style={{ alignSelf: "stretch" }}
-              />
+
+              {/* Picker container fills available space */}
+              <View style={{ flex: 1, alignSelf: "stretch" }}>
+                <DateTimePicker
+                  value={tempTime}
+                  mode="time"
+                  display="spinner"
+                  onChange={(_, d) => {
+                    if (d) setTempTime(d);
+                  }}
+                  style={{ flex: 1, alignSelf: "stretch" }}
+                />
+              </View>
             </View>
           </View>
         </Modal>
@@ -557,7 +572,13 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: "#ff8ea5", paddingHorizontal: width * 0.07, paddingVertical: height * 0.017, borderRadius: width * 0.03, alignItems: "center", shadowColor: "#ff6b8a", shadowOpacity: 0.2, shadowRadius: width * 0.02, elevation: 2, },
   saveText: { fontWeight: "700", color: "white", fontSize: width * 0.04 },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end", },
-  timeSheet: { backgroundColor: "#fff", borderTopLeftRadius: width * 0.04, borderTopRightRadius: width * 0.04, paddingBottom: height * 0.03, paddingHorizontal: width * 0.03, },
+  timeSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: width * 0.04,
+    borderTopRightRadius: width * 0.04,
+    paddingBottom: height * 0.03,
+    paddingHorizontal: width * 0.03,
+  },
   modalHeader: { paddingHorizontal: width * 0.02, paddingTop: height * 0.015, paddingBottom: height * 0.01, flexDirection: "row", alignItems: "center", justifyContent: "space-between", },
   modalTitle: { fontWeight: "700", fontSize: width * 0.04 },
   cancelBtn: { color: "#6B7280", fontSize: width * 0.04 },
