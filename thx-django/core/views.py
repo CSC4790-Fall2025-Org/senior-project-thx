@@ -1,14 +1,16 @@
 from rest_framework.views import APIView
 from rest_framework import viewsets, status, mixins
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.decorators import action
-# accept JSON as well as multipart/form-data
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
 import logging
+import json
+from datetime import datetime, date, time
+from typing import List, Dict, Any
 
 from .models import Service, Availability, Booking, ServiceImage
 from .serializers import (
@@ -92,14 +94,15 @@ class ProfileMeView(APIView):
 class ServiceViewSet(viewsets.ModelViewSet):
     """
     GET    /api/services/?tag=Beauty&name=hair
-    POST   /api/services/          (supports multipart/form-data with repeated 'images' files)
+    POST   /api/services/          (multipart or JSON; 'images' optional)
     GET    /api/services/{id}/
-    PATCH  /api/services/{id}/     (supports multipart/form-data to append new images)
+    PATCH  /api/services/{id}/     (multipart or JSON; can replace availability)
     DELETE /api/services/{id}/
     """
     serializer_class = ServiceSerializer
     lookup_field = "id"
-    parser_classes = (MultiPartParser, FormParser)  # enable multipart parsing for uploads
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    permission_classes = (IsAuthenticatedOrReadOnly,)
 
     def get_queryset(self):
         qs = Service.objects.all().order_by("-id")  # newest first
@@ -132,18 +135,16 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """
         Handle POST /api/services/
-        Accepts JSON or multipart/form-data. If 'images' files are included, store them.
+        Requires authentication. Attaches request.user to the service.
         """
+        if not request.user or not request.user.is_authenticated:
+            return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+
         data = request.data.copy()
-
-        # resolve the user from auth/header/demo
-        user = resolve_request_user(request)
-
-        serializer = self.get_serializer(data=data)
+        serializer = self.get_serializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 
-        # Save service with the user attached (prevents NOT NULL constraint failure)
-        service = serializer.save(user=user)
+        service = serializer.save()  # user handled in serializer.create
 
         files = request.FILES.getlist("images")
         if files:
@@ -152,17 +153,20 @@ class ServiceViewSet(viewsets.ModelViewSet):
         out = ServiceSerializer(service, context={"request": request})
         headers = self.get_success_headers(serializer.data)
         return Response(out.data, status=status.HTTP_201_CREATED, headers=headers)
-        
 
     def partial_update(self, request, *args, **kwargs):
         """
         Handle PATCH /api/services/{id}/
-        Accepts JSON or multipart/form-data. If 'images' files are included, append them.
+        Auth required. If availability payload present, it replaces rows (handled in serializer.update).
         """
+        if not request.user or not request.user.is_authenticated:
+            return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+
         partial = kwargs.pop("partial", True)
         instance = self.get_object()
         data = request.data.copy()
-        serializer = self.get_serializer(instance, data=data, partial=partial)
+
+        serializer = self.get_serializer(instance, data=data, partial=partial, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
@@ -173,6 +177,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
         out = ServiceSerializer(instance, context={"request": request}).data
         return Response(out)
 
+    def destroy(self, request, *args, **kwargs):
+        if not request.user or not request.user.is_authenticated:
+            return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+        return super().destroy(request, *args, **kwargs)
 
 class ServiceImageViewSet(mixins.DestroyModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     """

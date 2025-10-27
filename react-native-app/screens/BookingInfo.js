@@ -20,16 +20,24 @@ import { api } from "../src/api";
 const { height } = Dimensions.get("window");
 const DEMO_HEADERS = {};
 
+/**
+ * Turn "HH:MM:SS" (or "HH:MM") into a friendly label *without* shifting timezones.
+ * We treat the string as a wall-clock time and render it as-is.
+ */
 const toTimeLabel = (hhmmss) => {
   try {
-    const [h, m] = (hhmmss || "").split(":").map(Number);
+    const [h, m] = String(hhmmss || "").split(":").map((x) => parseInt(x || "0", 10));
+    if (Number.isNaN(h) || Number.isNaN(m)) return hhmmss || "";
+    // Build a local Date for *today* just to format; we keep the same wall-clock hour/min.
     const d = new Date();
-    d.setHours(h || 0, m || 0, 0, 0);
+    d.setHours(h, m, 0, 0);
+    // Use 2-digit to avoid locale quirks like "10:0"
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   } catch {
     return hhmmss || "";
   }
 };
+
 const firstDateKey = (obj) => Object.keys(obj || {})[0];
 
 export default function BookingInfo({ navigation, route }) {
@@ -45,7 +53,7 @@ export default function BookingInfo({ navigation, route }) {
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [slotsError, setSlotsError] = useState("");
 
-  // Form state (blank by default)
+  // Form state
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [email, setEmail] = useState("");
@@ -65,7 +73,9 @@ export default function BookingInfo({ navigation, route }) {
   }, [slots]);
 
   // Calendar & chip state
-  const [selectedDate, setSelectedDate] = useState(firstDateKey(availabilityMap) || new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(
+    firstDateKey(availabilityMap) || new Date().toISOString().slice(0, 10)
+  );
   const [selectedSlotId, setSelectedSlotId] = useState(null);
 
   // NEW: time slot modal visibility
@@ -78,7 +88,6 @@ export default function BookingInfo({ navigation, route }) {
       setSelectedDate(firstDate || new Date().toISOString().slice(0, 10));
       setSelectedSlotId(null);
     } else {
-      // also clear slot if that specific slot no longer exists
       if (selectedSlotId) {
         const stillThere = (availabilityMap[selectedDate] || []).some((s) => s.id === selectedSlotId);
         if (!stillThere) setSelectedSlotId(null);
@@ -104,7 +113,7 @@ export default function BookingInfo({ navigation, route }) {
       setSlotsError("");
       setLoadingSlots(true);
       const data = await api(`/services/${serviceId}/`, { headers: { ...DEMO_HEADERS } });
-      // Expect data.availabilities already excludes booked slots per backend
+      // Expect data.availabilities to be [{id,date,start_time,end_time}] with times as "HH:MM:SS"
       setSlots(Array.isArray(data?.availabilities) ? data.availabilities : []);
       if (!routeName && data?.name) setServiceName(data.name);
       if (routePrice == null && data?.price != null) setPrice(data.price);
@@ -286,7 +295,7 @@ export default function BookingInfo({ navigation, route }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Inline time chips (keep as an alternative quick picker) */}
+              {/* Inline time chips */}
               {daySlots.length > 0 ? (
                 <View style={styles.timeListCard}>
                   <View style={styles.chipsRow}>
@@ -327,7 +336,7 @@ export default function BookingInfo({ navigation, route }) {
           <View style={{ height: 40 }} />
         </ScrollView>
 
-        {/* ===== Time Slot Modal (percentage-height bottom sheet) ===== */}
+        {/* ===== Time Slot Modal ===== */}
         <Modal
           visible={slotModalVisible}
           animationType="slide"
@@ -338,7 +347,7 @@ export default function BookingInfo({ navigation, route }) {
             <View
               style={[
                 styles.slotSheet,
-                { height: Math.max(320, Math.round(height * 0.5)) }, // ~50% of screen, min 320
+                { height: Math.max(320, Math.round(height * 0.5)) },
               ]}
             >
               {/* Header */}
@@ -354,12 +363,12 @@ export default function BookingInfo({ navigation, route }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Date label (optional) */}
+              {/* Date label */}
               <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
                 <Text style={{ color: "#6B7280" }}>{selectedDate}</Text>
               </View>
 
-              {/* Time chips list (fills the sheet) */}
+              {/* Time chips list */}
               <View style={{ flex: 1, paddingHorizontal: 12 }}>
                 {daySlots.length > 0 ? (
                   <View style={styles.chipsRow}>
@@ -491,7 +500,7 @@ const styles = StyleSheet.create({
   },
   saveText: { fontWeight: "700", color: "white", fontSize: 16 },
 
-  /* ---- NEW: modal styles ---- */
+  /* ---- Modal styles ---- */
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
