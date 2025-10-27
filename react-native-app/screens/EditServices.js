@@ -70,24 +70,24 @@ const listAvailToSlotsMap = (list) => {
   return out;
 };
 
-// Serialize the slotsByDate into the backend expected shape { "YYYY-MM-DD": [{start,end}, ...] }
-// Skip invalid dates and empty lists.
-const serializeAvailabilityISO = (slotsByDate) =>
-  Object.fromEntries(
-    Object.entries(slotsByDate || {})
-      .map(([date, slots]) => [
+const fmtHHMMSS = (d) => {
+  if (!(d instanceof Date)) d = new Date(d);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}:00`;
+};
+
+// Serialize availability as a flat list of {date, start_time, end_time}
+const serializeAvailabilityForAPI = (slotsByDate) =>
+  Object.entries(slotsByDate || {}).flatMap(([date, slots]) =>
+    (slots || []).map((s) => {
+      if (!(s.start instanceof Date) || !(s.end instanceof Date)) return null;
+      return {
         date,
-        (Array.isArray(slots) ? slots : [])
-          .map((s) => {
-            const start = s?.start instanceof Date ? s.start : new Date(s?.start);
-            const end = s?.end instanceof Date ? s.end : new Date(s?.end);
-            if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-            if (start > end) return null;
-            return { start: start.toISOString(), end: end.toISOString() };
-          })
-          .filter(Boolean),
-      ])
-      .filter(([_, slots]) => Array.isArray(slots) && slots.length > 0)
+        start_time: fmtHHMMSS(s.start),
+        end_time: fmtHHMMSS(s.end),
+      };
+    }).filter(Boolean)
   );
 
 // Human readable time label used in the UI
@@ -249,7 +249,7 @@ export default function EditServices({ navigation, route }) {
 
   const onSave = async () => {
     try {
-      const availability = serializeAvailabilityISO(slotsByDate);
+      const availability = serializeAvailabilityForAPI(slotsByDate);
       console.log("[DEBUG] availability payload:", availability);
 
       // Determine which images are local and need uploading
