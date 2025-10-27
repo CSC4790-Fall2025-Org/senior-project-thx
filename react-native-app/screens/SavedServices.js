@@ -57,13 +57,6 @@ const SavedServices = ({navigation}) => {
                 <Text style= {styles.helloText}>Hello MyAllRaAby!</Text> 
                 <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}></TouchableOpacity> 
                 
-                {/* FILTERS */} 
-                <TouchableOpacity style ={styles.filterFrame}> 
-                    <View style={styles.filterIcon}> 
-                        <Ionicons name="filter-outline" size={25}/> 
-                    </View> 
-                </TouchableOpacity> 
-                
                 {/* SEARCH BOX */} 
                 <View style ={styles.textInputBox}> 
                     <View style ={styles.searchIcon}> 

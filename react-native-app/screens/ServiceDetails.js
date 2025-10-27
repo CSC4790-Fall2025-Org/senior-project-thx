@@ -25,6 +25,7 @@ const ServiceDetails = ({route, navigation}) => {
   const [activeTab, setActiveTab] = useState('About');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -96,8 +97,8 @@ const ServiceDetails = ({route, navigation}) => {
           <Text style={styles.type}>{service.name}</Text>
           {!!providerName && <Text style={styles.provider}>By {providerName}</Text>}
           {!!priceText && <Text style={styles.cost}>{priceText}</Text>}
-          <TouchableOpacity style={styles.favButton} onPress={() => { /* toggle save later */ }}>
-            <Feather name="heart" size={25} color="#333" />
+          <TouchableOpacity style={styles.favButton} onPress={() => setSaved(!saved)}>
+            <FontAwesome name={saved ? "heart" : "heart-o"} size={25} color="#333" />
           </TouchableOpacity>
         </View>
 
