@@ -20,16 +20,17 @@ import Icon from "react-native-vector-icons/Ionicons";
 import ImageGalleryPicker from "../components/ImageGalleryPicker";
 import { api } from "../src/api";
 
-const TAG_OPTIONS = [
-  "Haircuts",
-  "Nails",
-  "Makeup",
-  "Tutoring",
-  "Cooking",
-  "Cleaning",
-];
+const TAG_OPTIONS = ["Haircuts","Nails","Makeup","Tutoring","Cooking","Cleaning"];
 
+// Helpers
 const todayISO = () => new Date().toISOString().slice(0, 10);
+const tomorrowISO = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+};
+// Treat today & past as locked
+const isTodayOrPast = (dateStr) => (dateStr || "") <= todayISO();
 
 /**
  * Format a Date object (or HH:MM:SS string) as a local wall-clock label without timezone shifting
@@ -80,17 +81,18 @@ export default function AddServices({ navigation }) {
 
   const [tagPickerVisible, setTagPickerVisible] = useState(false);
 
-  const [selectedDate, setSelectedDate] = useState(todayISO());
+  // Default to tomorrow; today is not allowed
+  const [selectedDate, setSelectedDate] = useState(tomorrowISO());
   const [slotsByDate, setSlotsByDate] = useState({}); // { "YYYY-MM-DD": [{id,start:Date,end:Date}] }
 
   const [timeModalVisible, setTimeModalVisible] = useState(false);
   const [timeEditing, setTimeEditing] = useState(null); // { dateKey, id, field }
   const [tempTime, setTempTime] = useState(new Date());
 
+  const dateIsLocked = isTodayOrPast(selectedDate);
+
   const markedDates = useMemo(() => {
-    const marks = {
-      [selectedDate]: { selected: true, selectedColor: "#FFD9E1" },
-    };
+    const marks = { [selectedDate]: { selected: true, selectedColor: "#FFD9E1" } };
     Object.keys(slotsByDate).forEach((d) => {
       if (!marks[d]) marks[d] = { marked: true, dotColor: "#ff6b8a" };
       else marks[d] = { ...marks[d], marked: true, dotColor: "#ff6b8a" };
@@ -104,13 +106,14 @@ export default function AddServices({ navigation }) {
   }, [slotsByDate, selectedDate]);
 
   const addSlot = () => {
-    const start = new Date();
-    start.setHours(10, 0, 0, 0);
-    const end = new Date();
-    end.setHours(11, 0, 0, 0);
+    if (dateIsLocked) {
+      Alert.alert("Date locked", "You can’t add time slots for today or past dates.");
+      return;
+    }
+    const start = new Date(); start.setHours(10, 0, 0, 0);
+    const end = new Date();   end.setHours(11, 0, 0, 0);
 
     const newSlot = { id: Math.random().toString(36).slice(2), start, end };
-
     setSlotsByDate((prev) => ({
       ...prev,
       [selectedDate]: [...(prev[selectedDate] || []), newSlot],
@@ -127,6 +130,10 @@ export default function AddServices({ navigation }) {
   };
 
   const openTimePicker = (slot, field) => {
+    if (dateIsLocked) {
+      Alert.alert("Date locked", "Pick a date after today to edit its time.");
+      return;
+    }
     setTimeEditing({ dateKey: selectedDate, id: slot.id, field });
     setTempTime(slot[field] instanceof Date ? new Date(slot[field]) : new Date());
     setTimeModalVisible(true);
@@ -147,16 +154,10 @@ export default function AddServices({ navigation }) {
       if (idx === -1) return prev;
 
       const updated = { ...list[idx], [field]: tempTime };
-
-      // Ensure start < end; auto-adjust by 60m if needed
       if (updated.start > updated.end) {
-        if (field === "start") {
-          updated.end = new Date(updated.start.getTime() + 60 * 60 * 1000);
-        } else {
-          updated.start = new Date(updated.end.getTime() - 60 * 60 * 1000);
-        }
+        if (field === "start") updated.end = new Date(updated.start.getTime() + 60 * 60 * 1000);
+        else updated.start = new Date(updated.end.getTime() - 60 * 60 * 1000);
       }
-
       list[idx] = updated;
       return { ...prev, [dateKey]: list };
     });
@@ -167,13 +168,11 @@ export default function AddServices({ navigation }) {
   const onSave = async () => {
     try {
       const availability = serializeAvailabilityForAPI(slotsByDate);
-
       if (availability.length === 0) {
         return Alert.alert("Add availability", "Please add at least one time slot.");
       }
       if (!service.trim()) return Alert.alert("Missing info", "Please enter a service name.");
-      if (!price || Number.isNaN(Number(price)))
-        return Alert.alert("Missing/invalid price", "Enter a valid price.");
+      if (!price || Number.isNaN(Number(price))) return Alert.alert("Missing/invalid price", "Enter a valid price.");
       if (!tag.trim()) return Alert.alert("Missing info", "Please choose a service tag.");
 
       const fd = new FormData();
@@ -193,11 +192,7 @@ export default function AddServices({ navigation }) {
         });
       }
 
-      await api("/services/", {
-        method: "POST",
-        body: fd, // Don't set Content-Type manually; let fetch set the boundary
-      });
-
+      await api("/services/", { method: "POST", body: fd });
       Alert.alert("Saved", "Service created!");
       navigation?.goBack?.();
     } catch (e) {
@@ -212,69 +207,35 @@ export default function AddServices({ navigation }) {
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: "Profile", params: { refresh: true } }],
-                });
-              }
+              if (navigation.canGoBack()) navigation.goBack();
+              else navigation.reset({ index: 0, routes: [{ name: "Profile", params: { refresh: true } }] });
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             style={{ zIndex: 2 }}
           >
             <Text style={styles.backText}>‹ Back</Text>
           </TouchableOpacity>
-
           <Text style={styles.title}>Add Services</Text>
           <View style={{ width: 48 }} />
         </View>
 
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {/* Service */}
           <Text style={styles.label}>Service</Text>
-          <TextInput
-            style={styles.input}
-            value={service}
-            onChangeText={setService}
-            placeholder="Enter service name"
-            autoCapitalize="sentences"
-            returnKeyType="done"
-          />
+          <TextInput style={styles.input} value={service} onChangeText={setService} placeholder="Enter service name" autoCapitalize="sentences" returnKeyType="done" />
 
           {/* Description */}
           <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={[styles.input, styles.textarea]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Describe your service"
-            multiline
-            scrollEnabled
-            textAlignVertical="top"
-          />
+          <TextInput style={[styles.input, styles.textarea]} value={description} onChangeText={setDescription} placeholder="Describe your service" multiline scrollEnabled textAlignVertical="top" />
 
           {/* Price */}
           <Text style={styles.label}>Price</Text>
-          <TextInput
-            style={styles.input}
-            value={price}
-            onChangeText={setPrice}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-          />
+          <TextInput style={styles.input} value={price} onChangeText={setPrice} keyboardType="decimal-pad" placeholder="0.00" />
 
           {/* Tag */}
           <Text style={styles.label}>Service Tag</Text>
           <TouchableOpacity style={styles.select} onPress={() => setTagPickerVisible(true)}>
-            <Text style={[styles.selectText, !tag && { color: "#9CA3AF" }]}>
-              {tag || "Choose a tag"}
-            </Text>
+            <Text style={[styles.selectText, !tag && { color: "#9CA3AF" }]}>{tag || "Choose a tag"}</Text>
             <Icon name="chevron-down" size={18} color="#6B7280" />
           </TouchableOpacity>
 
@@ -285,54 +246,71 @@ export default function AddServices({ navigation }) {
               current={selectedDate}
               onDayPress={(d) => setSelectedDate(d.dateString)}
               markedDates={markedDates}
+              minDate={tomorrowISO()} // 🔒 disallow today & earlier
               theme={{
                 textSectionTitleColor: "#9CA3AF",
                 selectedDayBackgroundColor: "#FFD9E1",
                 selectedDayTextColor: "#111827",
-                todayTextColor: "#ff6b8a",
+                todayTextColor: "#9CA3AF", // mute today's color since it's disabled
                 arrowColor: "#ff6b8a",
               }}
               style={styles.calendar}
             />
           </View>
 
+          {/* Lock banner for clarity */}
+          {dateIsLocked && (
+            <View style={styles.lockBanner}>
+              <Icon name="lock-closed-outline" size={16} color="#6B7280" />
+              <Text style={styles.lockText}>Today and past dates are disabled. Pick a future date.</Text>
+            </View>
+          )}
+
           {/* Time slots */}
           {daySlots.map((slot) => (
             <View key={slot.id} style={styles.slotRow}>
               <TouchableOpacity
-                style={[styles.timeBtn, styles.timeBtnLeft]}
+                style={[styles.timeBtn, styles.timeBtnLeft, dateIsLocked && styles.timeBtnDisabled]}
                 onPress={() => openTimePicker(slot, "start")}
+                disabled={dateIsLocked}
               >
-                <Text style={styles.timeText}>{toTimeLabel(slot.start)}</Text>
+                <Text style={[styles.timeText, dateIsLocked && styles.timeTextDisabled]}>{toTimeLabel(slot.start)}</Text>
               </TouchableOpacity>
 
               <Text style={styles.toDash}>—</Text>
 
               <TouchableOpacity
-                style={[styles.timeBtn, styles.timeBtnRight]}
+                style={[styles.timeBtn, styles.timeBtnRight, dateIsLocked && styles.timeBtnDisabled]}
                 onPress={() => openTimePicker(slot, "end")}
+                disabled={dateIsLocked}
               >
-                <Text style={styles.timeText}>{toTimeLabel(slot.end)}</Text>
+                <Text style={[styles.timeText, dateIsLocked && styles.timeTextDisabled]}>{toTimeLabel(slot.end)}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => removeSlot(slot.id)}
-                style={styles.iconBtn}
+                onPress={() => (dateIsLocked ? null : removeSlot(slot.id))}
+                style={[styles.iconBtn, dateIsLocked && styles.iconBtnDisabled]}
                 accessibilityLabel="Remove slot"
+                disabled={dateIsLocked}
               >
-                <Icon name="close" size={18} color="#6B7280" />
+                <Icon name="close" size={18} color={dateIsLocked ? "#C7CAD1" : "#6B7280"} />
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={addSlot} style={styles.iconBtn} accessibilityLabel="Add slot">
-                <Icon name="add" size={20} color="#6B7280" />
+              <TouchableOpacity
+                onPress={addSlot}
+                style={[styles.iconBtn, dateIsLocked && styles.iconBtnDisabled]}
+                accessibilityLabel="Add slot"
+                disabled={dateIsLocked}
+              >
+                <Icon name="add" size={20} color={dateIsLocked ? "#C7CAD1" : "#6B7280"} />
               </TouchableOpacity>
             </View>
           ))}
 
           {daySlots.length === 0 && (
-            <TouchableOpacity onPress={addSlot} style={styles.addFirstSlot}>
-              <Icon name="add-circle-outline" size={22} />
-              <Text style={styles.addFirstSlotText}>Add a time slot</Text>
+            <TouchableOpacity onPress={addSlot} style={[styles.addFirstSlot, dateIsLocked && styles.addFirstSlotDisabled]} disabled={dateIsLocked}>
+              <Icon name="add-circle-outline" size={22} color={dateIsLocked ? "#C7CAD1" : undefined} />
+              <Text style={[styles.addFirstSlotText, dateIsLocked && styles.timeTextDisabled]}>Add a time slot</Text>
             </TouchableOpacity>
           )}
 
@@ -348,18 +326,18 @@ export default function AddServices({ navigation }) {
           <View style={{ height: 40 }} />
         </ScrollView>
 
-        {/* Time Picker Modal */}
-        <Modal visible={timeModalVisible} animationType="slide" transparent onRequestClose={closeTimeModal}>
+        {/* Time Picker Modal (hidden when date is locked) */}
+        <Modal visible={timeModalVisible && !dateIsLocked} animationType="slide" transparent onRequestClose={closeTimeModal}>
           <View style={styles.modalBackdrop}>
             <View style={[styles.timeSheet, { height: sheetHeight }]}>
               <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={closeTimeModal}>
-                  <Text style={styles.cancelBtn}>Cancel</Text>
-                </TouchableOpacity>
+                <TouchableOpacity onPress={closeTimeModal}><Text style={styles.cancelBtn}>Cancel</Text></TouchableOpacity>
                 <Text style={styles.modalTitle}>Select time</Text>
-                <TouchableOpacity onPress={commitTimeChange}>
-                  <Text style={styles.doneBtn}>Done</Text>
-                </TouchableOpacity>
+                <TouchableOpacity onPress={commitTimeChange}><Text style={styles.doneBtn}>Done</Text></TouchableOpacity>
+              </View>
+
+              <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}>
+                <Text style={{ color: "#6B7280" }}>{selectedDate}</Text>
               </View>
 
               <View style={{ flex: 1, alignSelf: "stretch" }}>
@@ -367,9 +345,7 @@ export default function AddServices({ navigation }) {
                   value={tempTime}
                   mode="time"
                   display="spinner"
-                  onChange={(_, d) => {
-                    if (d) setTempTime(d);
-                  }}
+                  onChange={(_, d) => { if (d) setTempTime(d); }}
                   style={{ flex: 1, alignSelf: "stretch" }}
                 />
               </View>
@@ -378,21 +354,13 @@ export default function AddServices({ navigation }) {
         </Modal>
 
         {/* Tag Picker Modal */}
-        <Modal
-          visible={tagPickerVisible}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setTagPickerVisible(false)}
-        >
+        <Modal visible={tagPickerVisible} animationType="slide" transparent onRequestClose={() => setTagPickerVisible(false)}>
           <View style={styles.modalBackdrop}>
             <View style={styles.modalSheet}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Choose a tag</Text>
-                <TouchableOpacity onPress={() => setTagPickerVisible(false)}>
-                  <Icon name="close" size={22} />
-                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setTagPickerVisible(false)}><Icon name="close" size={22} /></TouchableOpacity>
               </View>
-
               <FlatList
                 data={TAG_OPTIONS}
                 keyExtractor={(item) => item}
@@ -400,16 +368,8 @@ export default function AddServices({ navigation }) {
                 renderItem={({ item }) => {
                   const selected = item === tag;
                   return (
-                    <TouchableOpacity
-                      style={styles.optionRow}
-                      onPress={() => {
-                        setTag(item);
-                        setTagPickerVisible(false);
-                      }}
-                    >
-                      <View style={[styles.radioOuter, selected && styles.radioOuterActive]}>
-                        {selected && <View style={styles.radioInner} />}
-                      </View>
+                    <TouchableOpacity style={styles.optionRow} onPress={() => { setTag(item); setTagPickerVisible(false); }}>
+                      <View style={[styles.radioOuter, selected && styles.radioOuterActive]}>{selected && <View style={styles.radioInner} />}</View>
                       <Text style={styles.optionText}>{item}</Text>
                     </TouchableOpacity>
                   );
@@ -426,180 +386,46 @@ export default function AddServices({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fff" },
   flex: { flex: 1 },
-
-  header: {
-    paddingTop: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#F3F4F6",
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
+  header: { paddingTop: 8, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#F3F4F6", alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
   backText: { color: "#6B7280", fontSize: 16 },
-
-  title: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#ff6b8a",
-  },
-
+  title: { position: "absolute", left: 0, right: 0, textAlign: "center", fontSize: 20, fontWeight: "700", color: "#ff6b8a" },
   content: { padding: 16, paddingBottom: 24, flexGrow: 1 },
-
   label: { marginTop: 12, marginBottom: 6, color: "#6B7280", fontSize: 13 },
-
-  input: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: "#111827",
-  },
-
+  input: { borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, color: "#111827" },
   textarea: { minHeight: 100, textAlignVertical: "top" },
-
-  select: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
+  select: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   selectText: { fontSize: 15, color: "#111827" },
-
-  calendarWrap: {
-    borderRadius: 14,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
+  calendarWrap: { borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: "#E5E7EB" },
   calendar: { borderRadius: 14 },
-
+  // Lock banner
+  lockBanner: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#E5E7EB", marginTop: 8, marginBottom: 2 },
+  lockText: { color: "#6B7280", fontSize: 12 },
   slotRow: { marginTop: 12, flexDirection: "row", alignItems: "center" },
-
-  timeBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: "#fff",
-  },
-
+  timeBtn: { flex: 1, borderWidth: 1, borderColor: "#E5E7EB", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "#fff" },
+  timeBtnDisabled: { opacity: 0.5 },
   timeBtnLeft: { marginRight: 8 },
   timeBtnRight: { marginLeft: 8 },
-
   timeText: { fontSize: 15, color: "#111827", textAlign: "center" },
-
+  timeTextDisabled: { color: "#9CA3AF" },
   toDash: { marginHorizontal: 6, color: "#6B7280", fontSize: 18 },
-
-  iconBtn: {
-    marginLeft: 8,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-  },
-
-  addFirstSlot: {
-    marginTop: 10,
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
+  iconBtn: { marginLeft: 8, width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: "#E5E7EB", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
+  iconBtnDisabled: { opacity: 0.5 },
+  addFirstSlot: { marginTop: 10, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8, backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB" },
+  addFirstSlotDisabled: { opacity: 0.6 },
   addFirstSlotText: { color: "#6B7280", marginLeft: 6 },
-
-  saveBtn: {
-    backgroundColor: "#ff8ea5",
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    shadowColor: "#ff6b8a",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-
+  saveBtn: { backgroundColor: "#ff8ea5", paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12, alignItems: "center", shadowColor: "#ff6b8a", shadowOpacity: 0.2, shadowRadius: 8, elevation: 2 },
   saveText: { fontWeight: "700", color: "white", fontSize: 16 },
-
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-
-  timeSheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingBottom: 24,
-    paddingHorizontal: 12,
-  },
-
-  modalHeader: {
-    paddingHorizontal: 8,
-    paddingTop: 12,
-    paddingBottom: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
+  timeSheet: { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 24, paddingHorizontal: 12 },
+  modalHeader: { paddingHorizontal: 8, paddingTop: 12, paddingBottom: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   modalTitle: { fontWeight: "700", fontSize: 16 },
-
   cancelBtn: { color: "#6B7280", fontSize: 16 },
-
   doneBtn: { color: "#ff6b8a", fontSize: 16, fontWeight: "700" },
-
-  modalSheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingBottom: 20,
-    maxHeight: "60%",
-  },
-
+  modalSheet: { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 20, maxHeight: "60%" },
   sep: { height: StyleSheet.hairlineWidth, backgroundColor: "#E5E7EB", marginLeft: 56 },
-
   optionRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14 },
-
   optionText: { fontSize: 16, color: "#111827", marginLeft: 12 },
-
-  radioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: "#D1D5DB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
+  radioOuter: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#D1D5DB", alignItems: "center", justifyContent: "center" },
   radioOuterActive: { borderColor: "#ff6b8a" },
-
   radioInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: "#ff6b8a" },
 });
