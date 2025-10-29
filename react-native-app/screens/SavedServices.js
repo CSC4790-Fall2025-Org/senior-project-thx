@@ -1,3 +1,4 @@
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Dimensions, TouchableOpacity, TextInput, Image, FlatList } from 'react-native'; 
 import { LinearGradient } from 'expo-linear-gradient'; 
 import EvilIcons from 'react-native-vector-icons/EvilIcons'; 
@@ -6,7 +7,8 @@ import Feather from 'react-native-vector-icons/Feather';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import ServiceList from '../components/ServiceList'; 
-import { dummyData } from '../data/Dummy'; 
+import { api } from '../src/api';
+import { API_BASE } from '../src/config';
 
 const { height } = Dimensions.get('window'); 
 
@@ -18,15 +20,62 @@ const services = [
     { id: 5, name: 'Makeup', iconLib: 'FontAwesome5', iconName: 'palette' }, 
 ]; 
 
+const buildAbsolute = (url) => {
+  if (!url) return null;
+  if (url.startsWith("http")) return url;
+  const host = API_BASE.replace(/\/api\/?$/, "");
+  return `${host}${url}`;
+};
+
 const SavedServices = ({navigation}) => { 
-    const flattenedServices = dummyData.flatMap(provider => 
-    provider.services.map(service => ({ 
-      ...service, 
-      providerName: provider.name, 
-      location: provider.location, 
-      id: `${provider.id}-${service.service}`,  
-    })) 
-    ); 
+    const [profileLoading, setProfileLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState(null);
+    const [services, setServices] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        (async () => {
+        try {
+            const profile = await api("/profile/me/");
+            setCurrentUserId(profile.id);
+        } catch (e) {
+            console.warn("Failed to load user profile for SavedServices");
+        } finally {
+            setProfileLoading(false);
+        }
+        })();
+    }, []);
+
+    const fetchSavedServices = useCallback(async () => {
+        if (!currentUserId) return;
+        setLoading(true);
+        try {
+        const data = await api(`/services/saved/`); // Django endpoint
+        const normalized = (Array.isArray(data) ? data : []).map((svc) => {
+            const imageUrl = buildAbsolute(svc.image);
+            return {
+            id: svc.id,
+            service: svc.name,
+            provider: svc.user?.username || "Unknown",
+            price: svc.price,
+            imageUri: { uri: imageUrl },
+            };
+        });
+        setServices(normalized);
+        } catch (e) {
+        console.error("Error fetching saved services:", e);
+        setError(e.message?.toString() || "Failed to load saved services");
+        } finally {
+        setLoading(false);
+        }
+    }, [currentUserId]);
+
+    useEffect(() => {
+        if (!profileLoading && currentUserId) {
+            fetchSavedServices();
+        }
+    }, [profileLoading, currentUserId, fetchSavedServices]);
 
     const renderIcon = (item, size = 30, color = '#333') => {
       const { iconLib, iconName } = item;
@@ -70,7 +119,7 @@ const SavedServices = ({navigation}) => {
                 </View> 
             </LinearGradient> 
 
-            {/* SCROLL TOP CATEGORY */} 
+            {/* SCROLL TOP CATEGORY 
             <View style={styles.categoryContent}> 
                 <Text style={styles.topServiceText}>TOP SERVICES</Text> 
                 <FlatList 
@@ -93,15 +142,19 @@ const SavedServices = ({navigation}) => {
                     </View> 
                 )} 
                 /> 
-            </View> 
+            </View>  */}
 
             {/* SCROLL SERVICES */} 
             <View style={styles.serviceContainer}> 
                 <Text style={styles.servicesText}>
-                  Saved Services ({flattenedServices.length})
+                  Saved Services ({services.length})
                 </Text> 
                 <View style= {styles.scrollArea}> 
-                    <ServiceList services={flattenedServices} /> 
+                    {services.length > 0 ? (
+                        <ServiceList services={services} />
+                    ) : (
+                        <Text style={styles.emptyText}>You haven't saved any services yet.</Text>
+                    )} 
                 </View> 
             </View> 
 

@@ -27,22 +27,49 @@ const ServiceDetails = ({route, navigation}) => {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        setError('');
-        setLoading(true);
-        const data = await api(`/services/${id}/`, { headers: { ...DEMO_HEADERS } });
-        if (mounted) setService(data);
-      } catch (e) {
-        if (mounted) setError(e.message?.toString() || 'Failed to load service.');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [id]);
+useEffect(() => {
+  let mounted = true;
+
+  (async () => {
+    try {
+      setLoading(true);
+
+      // 1️⃣ Fetch service details
+      const data = await api(`/services/${id}/`);
+      if (!mounted) return;
+
+      setService(data);
+
+      // 2️⃣ Check if current user has this service saved
+      const profile = await api("/profile/me/");
+      const savedServiceIds = profile.saved_services?.map(s => s.id) || [];
+      setSaved(savedServiceIds.includes(data.id));
+
+    } catch (e) {
+      console.warn("Failed to load service or profile", e);
+      setError(e.message || "Failed to load service");
+    } finally {
+      if (mounted) setLoading(false);
+    }
+  })();
+
+  return () => { mounted = false; };
+}, [id]);
+
+useEffect(() => {
+  if (!service) return;
+
+  const checkSaved = async () => {
+    try {
+      const data = await api(`/services/${id}/`); // or service already has saved info
+      setSaved(data.is_saved || false); // DRF should return is_saved boolean in GET
+    } catch (err) {
+      console.warn("Failed to check saved state", err);
+    }
+  };
+
+  checkSaved();
+}, [service]);
 
   const providerName = useMemo(() => {
     if (!service) return null;
@@ -97,7 +124,28 @@ const ServiceDetails = ({route, navigation}) => {
           <Text style={styles.type}>{service.name}</Text>
           {!!providerName && <Text style={styles.provider}>By {providerName}</Text>}
           {!!priceText && <Text style={styles.cost}>{priceText}</Text>}
-          <TouchableOpacity style={styles.favButton} onPress={() => setSaved(!saved)}>
+          <TouchableOpacity 
+              style={styles.favButton}
+              onPress={async () => {
+                try {
+                  // Immediately toggle in UI for responsiveness
+                  setSaved((prev) => !prev);
+
+                  const response = await api(`/services/${id}/toggle-save/`, {
+                    method: 'POST',
+                  });
+
+                  // Your DRF view returns { saved: true/false }
+                  if (response?.saved !== undefined) {
+                    setSaved(response.saved);
+                  }
+                } catch (error) {
+                  console.error('Failed to toggle save:', error);
+                  // Revert if API fails
+                  setSaved((prev) => !prev);
+                }
+              }}
+          >
             <FontAwesome name={saved ? "heart" : "heart-o"} size={25} color="#333" />
           </TouchableOpacity>
         </View>

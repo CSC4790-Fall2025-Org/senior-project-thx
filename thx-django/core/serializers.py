@@ -53,7 +53,7 @@ class FullServiceSerializer(BaseServiceSerializer):
     location = serializers.CharField(source='user.location', read_only=True)
     user_id = serializers.IntegerField(source='user.id', read_only=True)
     image = serializers.ImageField(required=False)
-    isSaved = serializers.BooleanField(default=False)
+    isSaved = serializers.SerializerMethodField() 
     provider_name = serializers.CharField(source='user.name', read_only=True)
 
     class Meta(BaseServiceSerializer.Meta):
@@ -74,6 +74,13 @@ class FullServiceSerializer(BaseServiceSerializer):
 
     def get_images(self, obj):
         return ServiceImageSerializer(obj.images.all(), many=True, context=self.context).data
+    
+    def get_isSaved(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user and user.is_authenticated:
+            return obj in user.saved_services.all()
+        return False
 
     def create(self, validated_data):
         request = self.context.get("request")
@@ -212,10 +219,11 @@ class BookingSerializer(serializers.ModelSerializer):
 class UserMeSerializer(serializers.ModelSerializer):
     services = FullServiceSerializer(many=True, read_only=True)
     bookings = BookingSerializer(source="customer_bookings", many=True, read_only=True)
+    saved_services = FullServiceSerializer(many=True, read_only=True)
 
     class Meta:
         model = User
-        fields = ["id", "name", "email", "location", "profile_picture", "services", "bookings"]
+        fields = ["id", "name", "email", "location", "profile_picture", "services", "bookings", "saved_services"]
         read_only_fields = ["email"]
 
 

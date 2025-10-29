@@ -13,5 +13,6 @@ router.register("bookings", BookingViewSet, basename="booking")
 urlpatterns = [
     path("", include(router.urls)),
     path("profile/me/", ProfileMeView.as_view(), name="profile-me"),
-    path('auth/', include('core.authentication.urls')), 
+    path('auth/', include('core.authentication.urls')),
+    path('services/<int:pk>/toggle_saved/', ServiceViewSet.as_view({'post': 'toggle_saved'}), name='toggle_saved'),
 ]
