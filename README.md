@@ -90,6 +90,7 @@ npm install @react-native-community/datetimepicker
 npm install @react-native-async-storage/async-storage
 npm install react-native-vector-icons
 npm install @react-native-picker/picker
+npm install react-native-dropdown-picker
 
 
 npx expo install react-native-screens react-native-safe-area-context
