@@ -42,8 +42,8 @@ def resolve_request_user(request):
             return User.objects.get(id=header_user_id)
         except User.DoesNotExist:
             pass
-
-    return get_active_demo_user(request)
+    return None
+    # return get_active_demo_user(request)
 
 
 class ProfileMeView(APIView):
