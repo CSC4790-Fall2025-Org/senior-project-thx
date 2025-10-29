@@ -534,7 +534,7 @@ export default function Profile() {
                   key={service.service_id}
                   image={service.image}
                   title={service.name}
-                  price={`$${(service.price || 0).toFixed(2)}`}
+                  price={`$${(Number(service.price) || 0).toFixed(2)}`}
                   category={service.tag}
                   onEdit={() => navigation.navigate('EditServices', {
                     service_id: service.service_id || service.id,
