@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import DropDownPicker from 'react-native-dropdown-picker';
 import AppStyles, { colors } from '../styles/AppStyles';
 import ServiceCard from '../styles/ServiceCard';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -36,7 +37,46 @@ const buildAbsolute = (url) => {
   return url.startsWith('/') ? `${host}${url}` : `${host}/${url}`;
 };
 
+const availableLocations = [
+  "Alumni Hall",
+  "Austin Hall",
+  "Canon Hall",
+  "Caughlin Hall",
+  "Connelly Center",
+  "Corr Hall",
+  "Delurey Hall",
+  "Dobbin Hall",
+  "Farley Hall",
+  "Fedigan Hall",
+  "Friar Hall",
+  "Gallen Hall",
+  "Good Counsel Hall",
+  "Hovnanian Hall",
+  "Jackson Hall",
+  "Klekotka Hall",
+  "McGuinn Hall",
+  "McGuire Hall",
+  "Moriarty Hall",
+  "Moulden Hall",
+  "O'Dwyer Hall",
+  "Rudolph Hall",
+  "St. Clare Hall",
+  "St. Katharine Hall",
+  "St. Mary Hall",
+  "St. Rita Hall",
+  "Sheehan Hall",
+  "Stanford Hall",
+  "Sullivan Hall",
+  "Trinity Hall",
+  "Welsh Hall",
+];
+
 export default function Profile() {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState(
+    availableLocations.map((loc) => ({ label: loc, value: loc }))
+  );
+
   const [user, setUser] = useState({ services: [], location: '' });
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -183,6 +223,31 @@ export default function Profile() {
       console.log('SAVE ERROR', e);
       Alert.alert('Failed to save profile changes');
     }
+  };
+  const handleLogout = async () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Clear auth token or user data
+              await AsyncStorage.removeItem("authToken"); // or whatever key you store
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "Login" }], // navigate to login screen
+              });
+            } catch (err) {
+              console.log("Logout failed", err);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // --- Avatar / profile pic handling ---
@@ -425,12 +490,34 @@ export default function Profile() {
               editable={false}
             />
             <Text style={AppStyles.label}>Location</Text>
-            <TextInput
-              style={AppStyles.input}
-              value={location || ''}
-              onChangeText={setLocation}
-              editable={true}
-            />
+            <View style={{ zIndex: 1000 }}>
+              <DropDownPicker
+                open={open}
+                value={location}
+                items={items}
+                setOpen={setOpen}
+                setValue={setLocation}
+                setItems={setItems}
+                placeholder="Select your location..."
+                style={[AppStyles.input, { justifyContent: 'center' }]} // matches your input box
+                dropDownContainerStyle={{
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  backgroundColor: '#fff',
+                  borderRadius: 8,
+                  marginTop: 2,
+                }}
+                textStyle={{
+                  color: colors.textPrimary,
+                  fontSize: 16,
+                }}
+                placeholderStyle={{
+                  color: '#999',
+                }}
+                listMode="SCROLLVIEW"
+                searchable={false}
+              />
+            </View>
           </View>
 
           <TouchableOpacity
@@ -466,6 +553,12 @@ export default function Profile() {
               <Text style={AppStyles.addServicesText}>Save</Text>
             </TouchableOpacity>
           ) : null}
+          <TouchableOpacity
+            style={[AppStyles.addServicesBtn, { backgroundColor: '#ff4d4d', marginBottom: 24, marginTop: 10 }]}
+            onPress={handleLogout}
+          >
+            <Text style={AppStyles.addServicesText}>Logout</Text>
+          </TouchableOpacity>
         </ScrollView>
 
         <View style={styles.navBarContainer}>

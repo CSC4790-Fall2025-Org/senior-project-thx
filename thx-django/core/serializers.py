@@ -11,21 +11,21 @@ from .models import Service, Availability, Booking, ServiceImage
 
 User = get_user_model()
 
-def get_active_demo_user(request=None):
-    # Header or query param controls which demo we use
-    sel = None
-    if request is not None:
-        sel = request.headers.get("X-Demo-User") or request.query_params.get("demo")
+# def get_active_demo_user(request=None):
+#     # Header or query param controls which demo we use
+#     sel = None
+#     if request is not None:
+#         sel = request.headers.get("X-Demo-User") or request.query_params.get("demo")
 
-    if str(sel) in ("2", "demo2"):
-        email = "rphan01@villanova.edu"
-        defaults = {"name": "Rachel", "location": "Corr Hall"}
-    else:
-        email = "mdang01@villanova.edu"
-        defaults = {"name": "Mya", "location": "Friar Hall"}
+#     if str(sel) in ("2", "demo2"):
+#         email = "rphan01@villanova.edu"
+#         defaults = {"name": "Rachel", "location": "Corr Hall"}
+#     else:
+#         email = "mdang01@villanova.edu"
+#         defaults = {"name": "Mya", "location": "Friar Hall"}
 
-    user, _ = User.objects.get_or_create(email=email, defaults=defaults)
-    return user
+#     user, _ = User.objects.get_or_create(email=email, defaults=defaults)
+#     return user
 
 def _parse_hhmmss(s):
     parts = (s or "").split(":")
