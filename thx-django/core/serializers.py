@@ -11,6 +11,7 @@ from .models import Service, Availability, Booking, ServiceImage
 
 User = get_user_model()
 
+
 def get_active_demo_user(request=None):
     # Header or query param controls which demo we use
     sel = None
@@ -27,6 +28,7 @@ def get_active_demo_user(request=None):
     user, _ = User.objects.get_or_create(email=email, defaults=defaults)
     return user
 
+
 def _parse_hhmmss(s):
     parts = (s or "").split(":")
     h, m = int(parts[0]), int(parts[1])
@@ -34,22 +36,29 @@ def _parse_hhmmss(s):
     from datetime import time as dt_time
     return dt_time(hour=h, minute=m, second=sec)
 
+
 def _normalize_availability_payload(raw):
     import json
     from datetime import datetime
     if isinstance(raw, str):
-        try: raw = json.loads(raw)
-        except Exception: return []
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return []
     if isinstance(raw, list):
         cleaned = []
         for s in raw:
             d, st, et = s.get("date"), s.get("start_time"), s.get("end_time")
-            if not (d and st and et): continue
+            if not (d and st and et):
+                continue
             try:
                 d_obj = datetime.strptime(d, "%Y-%m-%d").date()
-                st_obj = _parse_hhmmss(st); et_obj = _parse_hhmmss(et)
-            except Exception: continue
-            if st_obj >= et_obj: continue
+                st_obj = _parse_hhmmss(st)
+                et_obj = _parse_hhmmss(et)
+            except Exception:
+                continue
+            if st_obj >= et_obj:
+                continue
             cleaned.append({"date": d_obj, "start_time": st_obj, "end_time": et_obj})
         return cleaned
     # legacy { "YYYY-MM-DD": [{start, end}] } allowed but ONLY uses time parts — no UTC shift
@@ -57,17 +66,22 @@ def _normalize_availability_payload(raw):
         from django.utils.dateparse import parse_datetime
         cleaned = []
         for d, slots in raw.items():
-            try: d_obj = datetime.strptime(d, "%Y-%m-%d").date()
-            except Exception: continue
+            try:
+                d_obj = datetime.strptime(d, "%Y-%m-%d").date()
+            except Exception:
+                continue
             for s in (slots or []):
                 sd, ed = parse_datetime(s.get("start")), parse_datetime(s.get("end"))
-                if not (sd and ed): continue
+                if not (sd and ed):
+                    continue
                 st_obj = sd.timetz().replace(tzinfo=None) if hasattr(sd, "timetz") else sd.time()
                 et_obj = ed.timetz().replace(tzinfo=None) if hasattr(ed, "timetz") else ed.time()
-                if st_obj >= et_obj: continue
+                if st_obj >= et_obj:
+                    continue
                 cleaned.append({"date": d_obj, "start_time": st_obj, "end_time": et_obj})
         return cleaned
     return []
+
 
 # Availability Serializer
 class AvailabilitySerializer(serializers.ModelSerializer):
@@ -93,16 +107,26 @@ class FullServiceSerializer(BaseServiceSerializer):
     isSaved = serializers.BooleanField(default=False)
     provider_name = serializers.CharField(source='user.name', read_only=True)
 
+    # New field: include owner's email directly on the service representation
+    owner_email = serializers.CharField(source='user.email', read_only=True)
+
     class Meta(BaseServiceSerializer.Meta):
         fields = BaseServiceSerializer.Meta.fields + [
-            "image", "isSaved", "availabilities", "user_id", "images", "provider_name", "location"
+            "image",
+            "isSaved",
+            "availabilities",
+            "user_id",
+            "images",
+            "provider_name",
+            "location",
+            "owner_email",
         ]
 
     def get_availabilities(self, obj):
         request = self.context.get("request")
         include_booked = False
         if request:
-            include_booked = str(request.query_params.get("include_booked", "")).lower() in ("1","true","yes")
+            include_booked = str(request.query_params.get("include_booked", "")).lower() in ("1", "true", "yes")
 
         qs = obj.availabilities.all()
         if not include_booked:
@@ -110,7 +134,7 @@ class FullServiceSerializer(BaseServiceSerializer):
 
         today = localdate()
         current_t = localtime(now()).time()
-        qs = qs.filter(Q(date__gt=today) | Q(date=today, end_time__gt=current_t)).order_by("date","start_time")
+        qs = qs.filter(Q(date__gt=today) | Q(date=today, end_time__gt=current_t)).order_by("date", "start_time")
 
         return [
             {
@@ -118,7 +142,8 @@ class FullServiceSerializer(BaseServiceSerializer):
                 "date": a.date.isoformat(),
                 "start_time": a.start_time.strftime("%H:%M:%S"),
                 "end_time": a.end_time.strftime("%H:%M:%S"),
-            } for a in qs
+            }
+            for a in qs
         ]
 
     def get_images(self, obj):
@@ -146,9 +171,7 @@ class FullServiceSerializer(BaseServiceSerializer):
         slots = _normalize_availability_payload(raw_payload)
 
         if slots:
-            Availability.objects.bulk_create(
-                Availability(service=service, **s) for s in slots
-            )
+            Availability.objects.bulk_create(Availability(service=service, **s) for s in slots)
 
         return service
 
@@ -171,9 +194,7 @@ class FullServiceSerializer(BaseServiceSerializer):
 
             Availability.objects.filter(service=instance).delete()
             if slots:
-                Availability.objects.bulk_create(
-                    Availability(service=instance, **s) for s in slots
-                )
+                Availability.objects.bulk_create(Availability(service=instance, **s) for s in slots)
 
         return instance
 
@@ -200,11 +221,11 @@ class BookingSerializer(serializers.ModelSerializer):
             "id",
             "service",
             "service_name",
-            'provider_name', 
+            "provider_name",
             "time",
             "time_detail",
             "location",
-            "customer_id",   
+            "customer_id",
             "customer_name",
             "customer_email",
             "created_at",
@@ -214,7 +235,7 @@ class BookingSerializer(serializers.ModelSerializer):
 
     def get_service_name(self, obj):
         return obj.service.name if obj.service else None
-        
+
     def get_image(self, obj):
         request = self.context.get('request')
         service = obj.service
@@ -257,6 +278,7 @@ class BookingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"detail": "Authentication required."})
         return Booking.objects.create(user=user, **validated_data)
 
+
 # User Me Serializer
 class UserMeSerializer(serializers.ModelSerializer):
     services = FullServiceSerializer(many=True, read_only=True)
@@ -266,6 +288,7 @@ class UserMeSerializer(serializers.ModelSerializer):
         model = User
         fields = ["id", "name", "email", "location", "profile_picture", "services", "bookings"]
         read_only_fields = ["email"]
+
 
 # Service Image Serializer
 class ServiceImageSerializer(serializers.ModelSerializer):
@@ -277,5 +300,7 @@ class ServiceImageSerializer(serializers.ModelSerializer):
 
     def get_url(self, obj):
         return obj.image.url if obj.image else None
-    
+
+
+# alias for convenience
 ServiceSerializer = FullServiceSerializer
