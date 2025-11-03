@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "corsheaders",
     # Local
     "core",
+    "core.authentication",
 ]
 
 # MIDDLEWARE = [
@@ -173,7 +174,9 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
-    "DEFAULT_AUTHENTICATION_CLASSES": [],  # no Session/JWT
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],  # no Session/JWT
 }
 
 # Default primary key field type

@@ -11,7 +11,6 @@ from .models import Service, Availability, Booking, ServiceImage
 
 User = get_user_model()
 
-
 # def get_active_demo_user(request=None):
 #     # Header or query param controls which demo we use
 #     sel = None
@@ -27,7 +26,6 @@ User = get_user_model()
 
 #     user, _ = User.objects.get_or_create(email=email, defaults=defaults)
 #     return user
-
 
 def _parse_hhmmss(s):
     parts = (s or "").split(":")
