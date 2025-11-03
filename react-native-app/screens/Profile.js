@@ -108,7 +108,8 @@ export default function Profile() {
       ...s,
       service_id: s.id,
       tag: s.type,
-      price: Number(s.price),
+      // keep price as received; format when rendering
+      price: s.price,
       image: imageObj,
     };
   };
@@ -192,7 +193,7 @@ export default function Profile() {
       await api(`/services/${service_id}/`, { method: 'DELETE' });
       setUser(prevUser => ({
         ...prevUser,
-        services: prevUser.services.filter(s => s.service_id !== service_id)
+        services: prevUser.services.filter(s => (s.service_id ?? s.id) !== service_id)
       }));
       Alert.alert('Service deleted!');
     } catch (e) {
@@ -200,6 +201,7 @@ export default function Profile() {
     }
   };
 
+  // --- SAVE PROFILE: now enrich services so images are preserved after save ---
   const handleSave = async () => {
     try {
       const updatedInfo = await api('/profile/me/', {
@@ -207,11 +209,15 @@ export default function Profile() {
         body: JSON.stringify({ name, location }),
       });
 
-      const services = (updatedInfo.services || []).map(s => ({
+      // Enrich services so images are present (server sometimes omits images in profile response)
+      const enrichedServices = await enrichServicesWithDetailsIfNeeded(updatedInfo.services || []);
+
+      // Normalize to expected shape
+      const services = (enrichedServices || []).map(s => ({
         ...s,
-        service_id: s.id,
-        tag: s.type,
-        price: Number(s.price),
+        service_id: s.id ?? s.service_id,
+        tag: s.type ?? s.tag,
+        price: s.price ?? s.price,
       }));
 
       setUser({ ...updatedInfo, services });
@@ -297,7 +303,8 @@ export default function Profile() {
       try { updated = JSON.parse(text); } catch (e) { /* ignore */ }
 
       if (updated) {
-        setUser(prev => ({ ...prev, ...updated }));
+        const enrichedServices = await enrichServicesWithDetailsIfNeeded(updated.services || []);
+        setUser({ ...updated, services: enrichedServices });
         setName(updated.name || '');
         setEmail(updated.email || '');
         setLocation(updated.location || '');
@@ -371,7 +378,8 @@ export default function Profile() {
       try { updated = JSON.parse(text); } catch (e) { /* ignore */ }
 
       if (updated) {
-        setUser(prev => ({ ...prev, ...updated }));
+        const enrichedServices = await enrichServicesWithDetailsIfNeeded(updated.services || []);
+        setUser({ ...updated, services: enrichedServices });
         setName(updated.name || '');
         setEmail(updated.email || '');
         setLocation(updated.location || '');
@@ -529,19 +537,30 @@ export default function Profile() {
 
           {user.services && Array.isArray(user.services) && (
             <View style={AppStyles.servicesContainer}>
-              {user.services.map(service => (
-                <ServiceCard
-                  key={service.service_id}
-                  image={service.image}
-                  title={service.name}
-                  price={`$${(Number(service.price) || 0).toFixed(2)}`}
-                  category={service.tag}
-                  onEdit={() => navigation.navigate('EditServices', {
-                    service_id: service.service_id || service.id,
-                  })}
-                  onDelete={() => handleDeleteService(service.service_id)}
-                />
-              ))}
+              {user.services.map((service, i) => {
+                // robust stable key: prefer service_id -> id -> fallback to composed string or index
+                const keyId = String(service.service_id ?? service.id ?? (`svc-${service.user_id ?? 'u'}-${service.name ?? i}`) ?? i);
+
+                // derive image object already normalized by enrichServicesWithDetailsIfNeeded
+                const img = service.image ?? null;
+
+                // ensure price formatting consistent
+                const priceStr = `$${(Number(service.price) || 0).toFixed(2)}`;
+
+                return (
+                  <ServiceCard
+                    key={keyId}
+                    image={img}
+                    title={service.name}
+                    price={priceStr}
+                    category={service.tag}
+                    onEdit={() => navigation.navigate('EditServices', {
+                      service_id: service.service_id || service.id,
+                    })}
+                    onDelete={() => handleDeleteService(service.service_id || service.id)}
+                  />
+                );
+              })}
             </View>
           )}
 
