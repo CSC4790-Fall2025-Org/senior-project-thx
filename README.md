@@ -92,7 +92,7 @@ npm install react-native-vector-icons
 npm install @react-native-picker/picker
 npm install react-native-dropdown-picker
 
-
+npx expo install expo-clipboard
 npx expo install react-native-screens react-native-safe-area-context
 npx expo install react-native-gesture-handler
 npx expo install expo-router
