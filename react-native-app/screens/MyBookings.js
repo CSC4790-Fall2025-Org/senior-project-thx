@@ -43,9 +43,16 @@ export default function MyBookings({ navigation }) {
   const mapItem = (item, role) => {
     const base = {
       id: String(item.id),
+      serviceId: item.service,
+      timeId: item.time,
       service: item.service_name || 'Unknown Service',
       date: item.time_detail?.date || '',
       time: formatTimeRange(item.time_detail?.start_time, item.time_detail?.end_time),
+      start_time: item.time_detail?.start_time,
+      end_time: item.time_detail?.end_time,
+      customerName: item.customer_name || '',
+      customerEmail: item.customer_email || '',
+      location: item.location || '',
       image: { uri: item.image },
     };
     if (role === TABS.CLIENT) {
@@ -183,7 +190,6 @@ export default function MyBookings({ navigation }) {
           </View>
         </TouchableOpacity>
       </LinearGradient>
-
       {/* Main content */}
       <View style={styles.content}>
         <Text style={styles.title}>
@@ -226,6 +232,27 @@ export default function MyBookings({ navigation }) {
               onMessage={() => alert(`Message for booking id ${item.id}`)}
               // only allow delete on "My Bookings"
               showDeleteIcon={activeTab === TABS.MY}
+              booking={item}
+              onMore={() => {
+                // Provider viewing a client’s booking -> open prefilled BookingInfo
+                navigation.navigate('ViewBooking', {
+                  serviceId: item.serviceId,          // optional; only used to refresh name/price
+                  serviceName: item.service,          // display immediately
+                  price: item.price,                  // optional
+                  existingBookingId: item.id,         // optional
+                  prefill: {
+                    name: item.customerName,
+                    email: item.customerEmail,
+                    location: item.location,
+                  },
+                  preselect: {
+                    date: item.date,                  // "YYYY-MM-DD"
+                    timeId: item.timeId,              // Availability PK (optional)
+                    start_time: item.start_time,      // "HH:MM[:SS]"
+                    end_time: item.end_time,      
+                  },
+                });  
+              }}       
             />
           )}
           contentContainerStyle={{ paddingBottom: 120 }}

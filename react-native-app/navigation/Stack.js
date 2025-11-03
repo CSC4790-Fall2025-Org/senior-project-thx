@@ -14,6 +14,7 @@ import EditServices from "../screens/EditServices";
 import MessageList from "../screens/MessageList";
 import Messages from "../screens/Messages";
 import Test from "../screens/Test";
+import ViewBooking from '../screens/ViewBooking';
 
 const Stack = createNativeStackNavigator();
 
@@ -31,6 +32,7 @@ export const AppStack = () => {
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="Profile" component={Profile} />
         <Stack.Screen name="MyBookings" component={MyBookings} />
+        <Stack.Screen name="ViewBooking" component={ViewBooking} />
         <Stack.Screen name="SavedServices" component={SavedServices} />
         <Stack.Screen name="ServiceDetails" component={ServiceDetails} />
         <Stack.Screen name="BookingInfo" component={BookingInfo} />
