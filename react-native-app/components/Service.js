@@ -1,8 +1,8 @@
 import { Text, View, Image, TouchableOpacity, StyleSheet } from "react-native"; 
 import { useNavigation } from "@react-navigation/native"; 
 
-const Service = ({ item }) => { 
-  const navigation = useNavigation(); 
+const Service = ({ item }) => {  
+  const navigation = useNavigation();
   return ( 
     <View style={styles.serviceCard}> 
       <View style={styles.cardContent}> 
@@ -18,6 +18,7 @@ const Service = ({ item }) => {
             style={styles.bookButton} 
             onPress={() => 
               navigation.navigate("ServiceDetails", { 
+                id: item.id,
                 type: item.service, 
                 provider: item.provider, 
                 cost: item.price, 

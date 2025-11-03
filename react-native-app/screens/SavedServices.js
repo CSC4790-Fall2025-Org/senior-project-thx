@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from "@react-navigation/native";
 import { StyleSheet, Text, View, Dimensions, TouchableOpacity, TextInput, Image, FlatList } from 'react-native'; 
 import { LinearGradient } from 'expo-linear-gradient'; 
 import EvilIcons from 'react-native-vector-icons/EvilIcons'; 
 import Ionicons from 'react-native-vector-icons/Ionicons'; 
 import Feather from 'react-native-vector-icons/Feather'; 
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import ServiceList from '../components/ServiceList'; 
 import { api } from '../src/api';
 import { API_BASE } from '../src/config';
@@ -31,8 +30,6 @@ const SavedServices = ({navigation}) => {
     const [profileLoading, setProfileLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState(null);
     const [services, setServices] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
 
     useEffect(() => {
         (async () => {
@@ -57,7 +54,7 @@ const SavedServices = ({navigation}) => {
             return {
             id: svc.id,
             service: svc.name,
-            provider: svc.user?.username || "Unknown",
+            provider: svc.provider_name || "Unknown",
             price: svc.price,
             imageUri: { uri: imageUrl },
             };
@@ -71,28 +68,13 @@ const SavedServices = ({navigation}) => {
         }
     }, [currentUserId]);
 
-    useEffect(() => {
+    useFocusEffect(
+    useCallback(() => {
         if (!profileLoading && currentUserId) {
-            fetchSavedServices();
+        fetchSavedServices();
         }
-    }, [profileLoading, currentUserId, fetchSavedServices]);
-
-    const renderIcon = (item, size = 30, color = '#333') => {
-      const { iconLib, iconName } = item;
-      const props = { name: iconName, size, color };
-      switch (iconLib) {
-        case 'Feather':
-          return <Feather {...props} />;
-        case 'FontAwesome5':
-          return <FontAwesome5 {...props} solid={false} />;
-        case 'MaterialCommunityIcons':
-          return <MaterialCommunityIcons {...props} />;
-        case 'Ionicons':
-          return <Ionicons {...props} />;
-        default:
-          return <Feather name="circle" size={size} color={color} />;
-      }
-    };
+    }, [profileLoading, currentUserId, fetchSavedServices])
+    );
 
     return ( 
         <View style={styles.container}> 
@@ -103,9 +85,8 @@ const SavedServices = ({navigation}) => {
                 start={{ x: 0, y: 1 }} 
                 end={{ x: 1, y: 0 }} 
             > 
-                <Text style= {styles.helloText}>Hello MyAllRaAby!</Text> 
+                <Text style= {styles.helloText}>Hello!</Text> 
                 <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}></TouchableOpacity> 
-                
                 {/* SEARCH BOX */} 
                 <View style ={styles.textInputBox}> 
                     <View style ={styles.searchIcon}> 
@@ -119,31 +100,6 @@ const SavedServices = ({navigation}) => {
                 </View> 
             </LinearGradient> 
 
-            {/* SCROLL TOP CATEGORY 
-            <View style={styles.categoryContent}> 
-                <Text style={styles.topServiceText}>TOP SERVICES</Text> 
-                <FlatList 
-                    data={services} 
-                    keyExtractor={(item) => String(item.id)} 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false} 
-                    contentContainerStyle={styles.carouselContainer} 
-                    renderItem={({ item }) => ( 
-                    <View style={styles.serviceItem}> 
-                        <TouchableOpacity 
-                            style={styles.serviceCircle} 
-                            onPress={() => console.log('Pressed:', item.name)} 
-                        > 
-                          <View style={styles.iconWrapper}>
-                            {renderIcon(item, 37, '#333')}
-                          </View>
-                        </TouchableOpacity> 
-                        <Text style={styles.serviceTypeText}>{item.name}</Text> 
-                    </View> 
-                )} 
-                /> 
-            </View>  */}
-
             {/* SCROLL SERVICES */} 
             <View style={styles.serviceContainer}> 
                 <Text style={styles.servicesText}>
@@ -151,7 +107,7 @@ const SavedServices = ({navigation}) => {
                 </Text> 
                 <View style= {styles.scrollArea}> 
                     {services.length > 0 ? (
-                        <ServiceList services={services} />
+                        <ServiceList services={services} navigation={navigation} />
                     ) : (
                         <Text style={styles.emptyText}>You haven't saved any services yet.</Text>
                     )} 
