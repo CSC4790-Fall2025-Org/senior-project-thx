@@ -3,13 +3,33 @@ import { useNavigation } from "@react-navigation/native";
 
 const Service = ({ item }) => {  
   const navigation = useNavigation();
+
+  let imageSource = null;
+
+  if (Array.isArray(item.imageUrl) && item.imageUrl.length > 0) {
+    const firstImage = item.imageUrl[0];
+    imageSource =
+      typeof firstImage === "string"
+        ? { uri: firstImage }
+        : firstImage.url
+        ? { uri: firstImage.url }
+        : null;
+  } else if (typeof item.imageUrl === "string") {
+    imageSource = { uri: item.imageUrl };
+  } else if (item.imageUrl?.uri) {
+    imageSource = { uri: item.imageUrl.uri };
+  } else if (item.imageUri?.uri) {
+    imageSource = { uri: item.imageUri.uri };
+  }
+  
   return ( 
     <View style={styles.serviceCard}> 
       <View style={styles.cardContent}> 
-        <Image 
-          source={item.imageUri} 
-          style={styles.serviceImage} 
-        /> 
+        {imageSource ? (
+          <Image source={imageSource} style={styles.serviceImage} />
+        ) : (
+          <View style={styles.serviceImage} />
+        )}
         <View style={styles.serviceInfo}> 
           <Text style={styles.serviceType}>{item.service}</Text> 
           <Text style={styles.providerName}>By {item.provider}</Text> 
@@ -19,10 +39,10 @@ const Service = ({ item }) => {
             onPress={() => 
               navigation.navigate("ServiceDetails", { 
                 id: item.id,
-                type: item.service, 
-                provider: item.provider, 
+                type: item.type, 
+                provider: item.provider_name, 
                 cost: item.price, 
-                image: item.imageUri, 
+                image: imageSource, 
               }) 
             } 
           > 
@@ -56,9 +76,10 @@ const styles = StyleSheet.create({
 
   serviceImage: { 
     width: 120, 
-    height: 120,
+    height: 120, 
     borderRadius: 10, 
     marginRight: 15, 
+    backgroundColor: '#EEE' 
   }, 
 
   serviceInfo: { 
