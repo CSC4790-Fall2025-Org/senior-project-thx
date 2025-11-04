@@ -26,19 +26,6 @@ const SavedServices = ({navigation}) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    // useEffect(() => {
-    //     (async () => {
-    //     try {
-    //         const profile = await api("/profile/me/");
-    //         setCurrentUserId(profile.id);
-    //     } catch (e) {
-    //         console.warn("Failed to load user profile for SavedServices");
-    //     } finally {
-    //         setProfileLoading(false);
-    //     }
-    //     })();
-    // }, []);
-
     const fetchProfile = useCallback(async () => {
       setProfileLoading(true);
       try {
@@ -57,31 +44,38 @@ const SavedServices = ({navigation}) => {
     useEffect(() => {
         fetchProfile();
     }, [fetchProfile]);
-    
+
     const fetchSavedServices = useCallback(async () => {
-    if (!currentUserId) return;
-    setLoading(true);
     try {
+        setLoading(true);
+        setError('');
+
         const data = await api(`/profile/me/`);
+
         const normalized = (Array.isArray(data.saved_services) ? data.saved_services : []).map((svc) => {
-            const imageUrl = buildAbsolute(svc.image);
+            let imageUrl = null;
+            if (Array.isArray(svc.images) && svc.images.length > 0) {
+                const firstImage = svc.images[0];
+                imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.url;
+            }
             return {
                 id: svc.id,
                 service: svc.name,
-                provider: svc.provider_name || "Unknown",
+                provider: svc.provider_name || 'Unknown',
                 price: svc.price,
-                imageUri: { uri: imageUrl || 'https://via.placeholder.com/150' },
-            };
+                imageUri: imageUrl ? { uri: buildAbsolute(imageUrl) } : null,
+                };
         });
+
         setServices(normalized);
-        console.log("Fetched saved services:", normalized);
     } catch (e) {
-        console.error("Error fetching saved services:", e);
-        setError(e.message?.toString() || "Failed to load saved services");
+        console.error('Failed to fetch saved services:', e);
+        setError(e.message?.toString() || 'Failed to load saved services');
     } finally {
         setLoading(false);
     }
-}, [currentUserId]);
+    }, []);
+
 
     useFocusEffect(
       useCallback(() => {
@@ -100,7 +94,7 @@ const SavedServices = ({navigation}) => {
                 start={{ x: 0, y: 1 }} 
                 end={{ x: 1, y: 0 }} 
             > 
-                <Text style= {styles.helloText}>Hello MyAllRaAby!</Text> 
+                <Text style= {styles.helloText}>Hello!</Text> 
 
                 {/* Avatar with pink outer background and white inner circle (image or emoji) */}
                 <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}>
