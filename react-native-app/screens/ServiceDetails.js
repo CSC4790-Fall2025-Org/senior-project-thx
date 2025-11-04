@@ -1,5 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Image, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Dimensions,
+  Image,
+  ScrollView,
+  ActivityIndicator,
+  Platform,
+  Modal,
+  Alert,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Feather from 'react-native-vector-icons/Feather';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -8,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api } from '../src/api';
 import { API_BASE } from '../src/config';
 import * as Linking from 'expo-linking';
+import * as Clipboard from 'expo-clipboard';
 
 const { height } = Dimensions.get('window');
 const DEMO_HEADERS = {};
@@ -19,12 +32,17 @@ const buildAbsolute = (url) => {
   return `${host}${url}`;
 };
 
-const ServiceDetails = ({route, navigation}) => {
+const ServiceDetails = ({ route, navigation }) => {
   const { id } = route.params;
   const [service, setService] = useState(null);
   const [activeTab, setActiveTab] = useState('About');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Modal state for Contact
+  const [contactModalVisible, setContactModalVisible] = useState(false);
+  const [contactEmail, setContactEmail] = useState(null);
+  const [contactLocation, setContactLocation] = useState(null);
   const [saved, setSaved] = useState(false);
 
 useEffect(() => {
@@ -113,6 +131,49 @@ useEffect(() => {
   // Show only the first image in the top-right image area
   const firstImageUri = images && images.length > 0 ? resolveImageUri(images[0]) : null;
 
+  // Prepare contact info and open modal
+  const openContactModal = () => {
+    const ownerEmail =
+      (service.user && (service.user.email || service.user.username)) ||
+      service.user_email ||
+      service.owner_email ||
+      service.provider_email ||
+      null;
+
+    const ownerLocation =
+      service.location ||
+      service.provider_location ||
+      (service.user && (service.user.location || service.user.address)) ||
+      '';
+
+    setContactEmail(ownerEmail);
+    setContactLocation(ownerLocation);
+    setContactModalVisible(true);
+  };
+
+  const handleCopyEmail = async () => {
+    if (!contactEmail) {
+      Alert.alert('No email', 'Owner email is not available.');
+      return;
+    }
+    try {
+      await Clipboard.setStringAsync(contactEmail);
+      Alert.alert('Copied', 'Email copied to clipboard.');
+    } catch (e) {
+      Alert.alert('Error', 'Unable to copy email.');
+    }
+  };
+
+  const handleOpenMail = () => {
+    if (!contactEmail) {
+      Alert.alert('No email', 'Owner email is not available.');
+      return;
+    }
+    Linking.openURL(`mailto:${contactEmail}`).catch(() => {
+      Alert.alert('Error', 'Unable to open mail client.');
+    });
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#F6C484A6', '#ED7678A6']} style={styles.gradient} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }}>
@@ -160,33 +221,34 @@ useEffect(() => {
         </View>
       </LinearGradient>
 
-      {/* rest of UI unchanged */}
+      {/* action buttons */}
       <View style={styles.extraButtonsContainer}>
-      <TouchableOpacity
-  style={styles.square}
-  onPress={() => {
-    const destination = service.location?.trim() || 'Villanova University';
+        <TouchableOpacity
+          style={styles.square}
+          onPress={() => {
+            const destination = service.location?.trim() || 'Villanova University';
 
-    const url = Platform.select({
-      ios: `maps:0,0?q=${encodeURIComponent(destination)}`,
-      android: `geo:0,0?q=${encodeURIComponent(destination)}`
-    });
+            const url = Platform.select({
+              ios: `maps:0,0?q=${encodeURIComponent(destination)}`,
+              android: `geo:0,0?q=${encodeURIComponent(destination)}`
+            });
 
-    Linking.openURL(url);
-  }}
->
-  <FontAwesome name="map-o" size={30} />
-  <Text style={styles.squareLabel}>Direction</Text>
-</TouchableOpacity>
+            Linking.openURL(url);
+          }}
+        >
+          <FontAwesome name="map-o" size={30} />
+          <Text style={styles.squareLabel}>Direction</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.square} onPress={() => {/* future: open chat */}}>
           <AntDesign name="message" size={30} />
           <Text style={styles.squareLabel}>Message</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.square} onPress={() => {/* future: share */}}>
-          <Feather name="share-2" size={30} />
-          <Text style={styles.squareLabel}>Share</Text>
+        {/* Contact button opens modal */}
+        <TouchableOpacity style={styles.square} onPress={openContactModal}>
+          <Ionicons name="mail-outline" size={30} />
+          <Text style={styles.squareLabel}>Contact</Text>
         </TouchableOpacity>
       </View>
 
@@ -248,11 +310,75 @@ useEffect(() => {
       >
         <Text style={styles.appointmentText}>Book Appointment</Text>
       </TouchableOpacity>
+
+      {/* Contact Modal */}
+      <Modal
+        visible={contactModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setContactModalVisible(false)}
+      >
+        <View style={modalStyles.overlay}>
+          <View style={modalStyles.sheet}>
+            <Text style={modalStyles.title}>Contact Owner</Text>
+            <Text style={modalStyles.label}>Email</Text>
+            <Text style={modalStyles.value}>{contactEmail ?? 'Not available'}</Text>
+            <Text style={[modalStyles.label, { marginTop: 8 }]}>Location</Text>
+            <Text style={modalStyles.value}>{contactLocation ?? 'Not available'}</Text>
+
+            <View style={{ flexDirection: 'row', marginTop: 16, justifyContent: 'space-between' }}>
+              <TouchableOpacity style={[AppButton.btn, { flex: 1, marginRight: 8 }]} onPress={handleCopyEmail}>
+                <Text style={AppButton.text}>Copy Email</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[AppButton.btn, { flex: 1, marginLeft: 8 }]} onPress={handleOpenMail}>
+                <Text style={AppButton.text}>Open Mail</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={{ alignSelf: 'center', marginTop: 12 }} onPress={() => setContactModalVisible(false)}>
+              <Text style={{ color: '#666' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 export default ServiceDetails;
+
+// small button styles used in modal (kept local to avoid touching global styles)
+const AppButton = {
+  btn: {
+    backgroundColor: '#ED7678',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  text: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+};
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 18,
+    elevation: 10,
+  },
+  title: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  label: { color: '#333', fontWeight: '600', marginTop: 6 },
+  value: { color: '#222', marginTop: 4 },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingBottom: 86 },
@@ -346,7 +472,7 @@ const styles = StyleSheet.create({
 
   appointmentButton: {
     position: 'absolute',
-    bottom: 16, 
+    bottom: 16,
     left: '5%',
     width: '90%',
     height: 52,

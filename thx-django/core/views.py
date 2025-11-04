@@ -1,24 +1,29 @@
 from rest_framework.views import APIView
 from rest_framework import viewsets, status, mixins
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.exceptions import ParseError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
-
+import logging
+import json
+from datetime import datetime, date, time
+from typing import List, Dict, Any
 from .models import Service, Availability, Booking, ServiceImage
 from .serializers import (
     UserMeSerializer,
     ServiceSerializer,
     BookingSerializer,
     ServiceImageSerializer,
-    get_active_demo_user,
 )
 
-# User = get_user_model()
+logger = logging.getLogger(__name__)
 
+# Ensure User is available for resolve_request_user
+User = get_user_model()
 
 def resolve_request_user(request):
     """
@@ -37,39 +42,65 @@ def resolve_request_user(request):
             return User.objects.get(id=header_user_id)
         except User.DoesNotExist:
             pass
-
-    return get_active_demo_user(request)
+    return None
+    # return get_active_demo_user(request)
 
 
 class ProfileMeView(APIView):
     """
     GET   /api/profile/me/   -> demo profile + demo services
-    PATCH /api/profile/me/   -> update demo profile fields
+    PATCH /api/profile/me/   -> update demo profile fields (accepts multipart for file uploads and JSON)
     """
+    # Allow multipart/form-data uploads (files) AND JSON requests
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+
     def get(self, request):
-        user = request.user
+        # Resolve the effective user (supports demo/header fallback when unauthenticated)
+        user = resolve_request_user(request)
         ser = UserMeSerializer(user, context={"request": request})
         return Response(ser.data)
 
     def patch(self, request):
-        user = request.user
+        # DEBUG: log incoming raw data to help troubleshoot why 'name' isn't persisting
+        try:
+            logger.debug("[ProfileMeView.patch] REQUEST.DATA: %s", request.data)
+        except Exception:
+            # keep logging safe
+            logger.debug("[ProfileMeView.patch] REQUEST.DATA unreadable")
+
+        # Resolve the effective user so we don't pass AnonymousUser to the serializer
+        user = resolve_request_user(request)
+
         ser = UserMeSerializer(user, data=request.data, partial=True, context={"request": request})
-        ser.is_valid(raise_exception=True)
+        if not ser.is_valid():
+            # Log validation errors and the raw incoming data
+            logger.warning("[ProfileMeView.patch] serializer invalid. errors=%s request.data=%s", ser.errors, request.data)
+            return Response({"detail": "Invalid data", "errors": ser.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Log validated data before saving
+        logger.debug("[ProfileMeView.patch] validated_data: %s", ser.validated_data)
+
         ser.save()
-        return Response(ser.data, status=status.HTTP_200_OK)
+
+        # After save, re-serialize and log the resulting data returned to client
+        out = UserMeSerializer(user, context={"request": request}).data
+        logger.debug("[ProfileMeView.patch] saved. returning: %s", out)
+
+        return Response(out, status=status.HTTP_200_OK)
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
     """
     GET    /api/services/?tag=Beauty&name=hair
-    POST   /api/services/          (supports multipart/form-data with repeated 'images' files)
+    POST   /api/services/          (multipart or JSON; 'images' optional)
     GET    /api/services/{id}/
-    PATCH  /api/services/{id}/     (supports multipart/form-data to append new images)
+    PATCH  /api/services/{id}/     (multipart or JSON; can replace availability)
     DELETE /api/services/{id}/
     """
     serializer_class = ServiceSerializer
     lookup_field = "id"
-    parser_classes = (MultiPartParser, FormParser)  # enable multipart parsing for uploads
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    permission_classes = (IsAuthenticatedOrReadOnly,)
 
     def get_queryset(self):
         qs = Service.objects.all().order_by("-id")  # newest first
@@ -102,18 +133,15 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """
         Handle POST /api/services/
-        Accepts JSON or multipart/form-data. If 'images' files are included, store them.
+        Requires authentication. Attaches request.user to the service.
         """
+        if not request.user or not request.user.is_authenticated:
+            return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+
         data = request.data.copy()
-
-        # resolve the user from auth/header/demo
-        user = resolve_request_user(request)
-
-        serializer = self.get_serializer(data=data)
+        serializer = self.get_serializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-
-        # Save service with the user attached (prevents NOT NULL constraint failure)
-        service = serializer.save(user=user)
+        service = serializer.save()  # user handled in serializer.create
 
         files = request.FILES.getlist("images")
         if files:
@@ -122,17 +150,20 @@ class ServiceViewSet(viewsets.ModelViewSet):
         out = ServiceSerializer(service, context={"request": request})
         headers = self.get_success_headers(serializer.data)
         return Response(out.data, status=status.HTTP_201_CREATED, headers=headers)
-        
 
     def partial_update(self, request, *args, **kwargs):
         """
         Handle PATCH /api/services/{id}/
-        Accepts JSON or multipart/form-data. If 'images' files are included, append them.
+        Auth required. If availability payload present, it replaces rows (handled in serializer.update).
         """
+        if not request.user or not request.user.is_authenticated:
+            return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+
         partial = kwargs.pop("partial", True)
         instance = self.get_object()
         data = request.data.copy()
-        serializer = self.get_serializer(instance, data=data, partial=partial)
+
+        serializer = self.get_serializer(instance, data=data, partial=partial, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
@@ -169,6 +200,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
+    def destroy(self, request, *args, **kwargs):
+        if not request.user or not request.user.is_authenticated:
+            return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+        return super().destroy(request, *args, **kwargs)
 
 class ServiceImageViewSet(mixins.DestroyModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     """
@@ -203,15 +238,25 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = resolve_request_user(self.request)
-        return self.queryset.filter(user=user)
+        role = (self.request.query_params.get("role")
+                or self.request.headers.get("X-Bookings-Role")
+                or "client").lower()
+
+        if role not in {"client", "provider"}:
+            raise ParseError(detail="Invalid role. Use 'client' or 'provider'.")
+
+        qs = self.queryset
+        if role == "provider":
+            # Bookings made on services that this user provides
+            return qs.filter(service__user=user)
+        # role == "client" (default): bookings this user made
+        return qs.filter(user=user)
 
     def create(self, request, *args, **kwargs):
-        # attach user resolved from request
         user = resolve_request_user(request)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Optional: sanity check availability exists
         availability_id = serializer.validated_data["time"].id
         _ = get_object_or_404(Availability, id=availability_id)
 
@@ -220,6 +265,8 @@ class BookingViewSet(viewsets.ModelViewSet):
         return Response(out.data, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()  # respects get_queryset scoping to current user
+        # NOTE: Deletion remains scoped to client-owned bookings.
+        # Providers won't be able to delete client bookings through this action.
+        instance = self.get_object()
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

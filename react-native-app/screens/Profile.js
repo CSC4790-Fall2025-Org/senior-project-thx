@@ -9,7 +9,12 @@ import {
   TouchableWithoutFeedback,
   StyleSheet,
   Dimensions,
+  Modal,
+  Image,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
+import DropDownPicker from 'react-native-dropdown-picker';
 import AppStyles, { colors } from '../styles/AppStyles';
 import ServiceCard from '../styles/ServiceCard';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,9 +23,12 @@ import Feather from 'react-native-vector-icons/Feather';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { api } from "../src/api";
 import { API_BASE } from "../src/config";
+import ImageGalleryPicker from '../components/ImageGalleryPicker'; // adjust path if needed
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = height * 0.10;
+const AVATAR_SIZE = 96; // adjust avatar size here
 
 const buildAbsolute = (url) => {
   if (!url) return null;
@@ -29,14 +37,59 @@ const buildAbsolute = (url) => {
   return url.startsWith('/') ? `${host}${url}` : `${host}/${url}`;
 };
 
+const availableLocations = [
+  "Alumni Hall",
+  "Austin Hall",
+  "Canon Hall",
+  "Caughlin Hall",
+  "Connelly Center",
+  "Corr Hall",
+  "Delurey Hall",
+  "Dobbin Hall",
+  "Farley Hall",
+  "Fedigan Hall",
+  "Friar Hall",
+  "Gallen Hall",
+  "Good Counsel Hall",
+  "Hovnanian Hall",
+  "Jackson Hall",
+  "Klekotka Hall",
+  "McGuinn Hall",
+  "McGuire Hall",
+  "Moriarty Hall",
+  "Moulden Hall",
+  "O'Dwyer Hall",
+  "Rudolph Hall",
+  "St. Clare Hall",
+  "St. Katharine Hall",
+  "St. Mary Hall",
+  "St. Rita Hall",
+  "Sheehan Hall",
+  "Stanford Hall",
+  "Sullivan Hall",
+  "Trinity Hall",
+  "Welsh Hall",
+];
+
 export default function Profile() {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState(
+    availableLocations.map((loc) => ({ label: loc, value: loc }))
+  );
+
   const [user, setUser] = useState({ services: [], location: '' });
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [location, setLocation] = useState('');
 
+  // Track originals so we know when to show "Save"
+  const [originalName, setOriginalName] = useState('');
   const [originalEmail, setOriginalEmail] = useState('');
   const [originalLocation, setOriginalLocation] = useState('');
+
+  const [avatarModalVisible, setAvatarModalVisible] = useState(false);
+  const [avatarSelection, setAvatarSelection] = useState([]); // array of { uri }
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const navigation = useNavigation();
 
@@ -55,7 +108,8 @@ export default function Profile() {
       ...s,
       service_id: s.id,
       tag: s.type,
-      price: Number(s.price),
+      // keep price as received; format when rendering
+      price: s.price,
       image: imageObj,
     };
   };
@@ -93,27 +147,20 @@ export default function Profile() {
   // LOAD PROFILE (initial)
   useEffect(() => {
     (async () => {
-      console.log("PROFILE EFFECT START");
       try {
         const myInfo = await api('/profile/me/');
-        console.log("PROFILE /me (raw):", myInfo);
-
-        // attempt to enrich services with images if the profile response omitted them
         const enrichedServices = await enrichServicesWithDetailsIfNeeded(myInfo.services || []);
-        console.log("PROFILE normalized services (count):", enrichedServices.length);
-        enrichedServices.forEach((svc, i) => {
-          console.log(` service[${i}] id=${svc.id || svc.service_id} image=`, svc.image);
-        });
-
         setUser({ ...myInfo, services: enrichedServices });
         setName(myInfo.name || '');
         setEmail(myInfo.email || '');
         setLocation(myInfo.location || '');
+        // set originals so Save appears when any of these change
+        setOriginalName(myInfo.name || '');
         setOriginalEmail(myInfo.email || '');
         setOriginalLocation(myInfo.location || '');
       } catch (e) {
         console.log("PROFILE LOAD ERROR", e);
-        alert('Failed to load user info');
+        Alert.alert('Failed to load user info');
       }
     })();
   }, []);
@@ -124,18 +171,17 @@ export default function Profile() {
       (async () => {
         try {
           const myInfo = await api("/profile/me/");
-          // enrich again to ensure images are present
           const enriched = await enrichServicesWithDetailsIfNeeded(myInfo.services || []);
-          console.log("PROFILE reload normalized services:", enriched.map(s => ({ id: s.id || s.service_id, image: s.image })));
           setUser({ ...myInfo, services: enriched });
           setName(myInfo.name || "");
           setEmail(myInfo.email || "");
+          setOriginalName(myInfo.name || "");
           setOriginalEmail(myInfo.email || "");
           setOriginalLocation(myInfo.location || "");
           setLocation(myInfo.location || "");
         } catch (e) {
           console.log("PROFILE reload error", e);
-          alert("Failed to reload profile info");
+          Alert.alert("Failed to reload profile info");
         }
       })();
     });
@@ -147,14 +193,15 @@ export default function Profile() {
       await api(`/services/${service_id}/`, { method: 'DELETE' });
       setUser(prevUser => ({
         ...prevUser,
-        services: prevUser.services.filter(s => s.service_id !== service_id)
+        services: prevUser.services.filter(s => (s.service_id ?? s.id) !== service_id)
       }));
-      alert('Service deleted!');
+      Alert.alert('Service deleted!');
     } catch (e) {
-      alert('Failed to delete service');
+      Alert.alert('Failed to delete service');
     }
   };
 
+  // --- SAVE PROFILE: now enrich services so images are preserved after save ---
   const handleSave = async () => {
     try {
       const updatedInfo = await api('/profile/me/', {
@@ -162,23 +209,203 @@ export default function Profile() {
         body: JSON.stringify({ name, location }),
       });
 
-      const services = (updatedInfo.services || []).map(s => ({
+      // Enrich services so images are present (server sometimes omits images in profile response)
+      const enrichedServices = await enrichServicesWithDetailsIfNeeded(updatedInfo.services || []);
+
+      // Normalize to expected shape
+      const services = (enrichedServices || []).map(s => ({
         ...s,
-        service_id: s.id,
-        tag: s.type,
-        price: Number(s.price),
+        service_id: s.id ?? s.service_id,
+        tag: s.type ?? s.tag,
+        price: s.price ?? s.price,
       }));
 
       setUser({ ...updatedInfo, services });
-      setOriginalEmail(updatedInfo.email);
-      setOriginalLocation(updatedInfo.location);
-      alert('Profile changes saved!');
+      setOriginalName(updatedInfo.name || '');
+      setOriginalEmail(updatedInfo.email || '');
+      setOriginalLocation(updatedInfo.location || '');
+      Alert.alert('Profile changes saved!');
     } catch (e) {
-      alert('Failed to save profile changes');
+      console.log('SAVE ERROR', e);
+      Alert.alert('Failed to save profile changes');
+    }
+  };
+  const handleLogout = async () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Clear auth token or user data
+              await AsyncStorage.removeItem("authToken"); // or whatever key you store
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "Login" }], // navigate to login screen
+              });
+            } catch (err) {
+              console.log("Logout failed", err);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // --- Avatar / profile pic handling ---
+
+  const currentAvatarUri = () => {
+    // check common keys: profile_picture, avatar, image, profile_image, photo (adjust if backend uses different field)
+    const v = user.profile_picture || user.avatar || user.image || user.profile_image || user.photo || null;
+    return buildAbsolute(typeof v === 'string' ? v : (v && (v.url || v.uri)) || null);
+  };
+
+  const openAvatarPicker = () => {
+    // initialize selection with current avatar if available
+    const cur = currentAvatarUri();
+    setAvatarSelection(cur ? [{ uri: cur }] : []);
+    setAvatarModalVisible(true);
+  };
+
+  const clearAvatarSelection = () => setAvatarSelection([]);
+
+  const handleClearAvatarOnServer = async () => {
+    setUploadingAvatar(true);
+    try {
+      const accessToken =
+        (await AsyncStorage.getItem('access_token')) ||
+        (await AsyncStorage.getItem('access')) ||
+        (await AsyncStorage.getItem('token')) ||
+        (await AsyncStorage.getItem('authToken'));
+
+      const form = new FormData();
+      form.append('profile_picture', '');
+
+      const headers = {};
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+      const resp = await fetch(`${API_BASE}/profile/me/`, {
+        method: 'PATCH',
+        headers,
+        body: form,
+      });
+
+      const text = await resp.text();
+      if (!resp.ok) {
+        throw new Error(text || `HTTP ${resp.status}`);
+      }
+
+      let updated = null;
+      try { updated = JSON.parse(text); } catch (e) { /* ignore */ }
+
+      if (updated) {
+        const enrichedServices = await enrichServicesWithDetailsIfNeeded(updated.services || []);
+        setUser({ ...updated, services: enrichedServices });
+        setName(updated.name || '');
+        setEmail(updated.email || '');
+        setLocation(updated.location || '');
+        setOriginalName(updated.name || '');
+        setOriginalEmail(updated.email || '');
+        setOriginalLocation(updated.location || '');
+      } else {
+        setUser(prev => ({ ...prev, profile_picture: null, avatar: null, image: null }));
+      }
+
+      setAvatarSelection([]);
+      setAvatarModalVisible(false);
+      Alert.alert('Profile picture removed.');
+    } catch (err) {
+      console.log('Failed to clear avatar on server', err);
+      Alert.alert('Failed to remove profile picture.', String(err));
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
+  const handleUploadAvatar = async (selectionArray) => {
+    if (!selectionArray || selectionArray.length === 0) {
+      await handleClearAvatarOnServer();
+      return;
+    }
 
+    const img = selectionArray[0];
+    const uri = img.uri;
+    setUploadingAvatar(true);
+
+    try {
+      const accessToken =
+        (await AsyncStorage.getItem('access_token')) ||
+        (await AsyncStorage.getItem('access')) ||
+        (await AsyncStorage.getItem('token')) ||
+        (await AsyncStorage.getItem('authToken'));
+
+      if (!accessToken) {
+        Alert.alert('Authentication missing', 'No access token found. Please sign in again.');
+        setUploadingAvatar(false);
+        return;
+      }
+
+      const formData = new FormData();
+      const filename = uri.split('/').pop();
+      const match = /\.(\w+)$/.exec(filename);
+      const ext = match ? match[1].toLowerCase() : 'jpg';
+      const mime = ext === 'png' ? 'image/png' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+
+      formData.append('profile_picture', {
+        uri,
+        name: filename || `profile.${ext}`,
+        type: mime,
+      });
+
+      const headers = { Authorization: `Bearer ${accessToken}` };
+
+      const resp = await fetch(`${API_BASE}/profile/me/`, {
+        method: 'PATCH',
+        headers,
+        body: formData,
+      });
+
+      const text = await resp.text();
+      if (!resp.ok) {
+        throw new Error(text || `HTTP ${resp.status}`);
+      }
+
+      let updated = null;
+      try { updated = JSON.parse(text); } catch (e) { /* ignore */ }
+
+      if (updated) {
+        const enrichedServices = await enrichServicesWithDetailsIfNeeded(updated.services || []);
+        setUser({ ...updated, services: enrichedServices });
+        setName(updated.name || '');
+        setEmail(updated.email || '');
+        setLocation(updated.location || '');
+        setOriginalName(updated.name || '');
+        setOriginalEmail(updated.email || '');
+        setOriginalLocation(updated.location || '');
+      }
+
+      setAvatarModalVisible(false);
+      Alert.alert('Profile picture updated.');
+    } catch (e) {
+      console.log('[Avatar Upload] error', e);
+      Alert.alert('Failed to upload avatar', String(e));
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  // Helper to determine whether the Save button should be visible
+  const isDirty = () => {
+    return (
+      name !== originalName ||
+      email !== originalEmail ||
+      location !== originalLocation
+    );
+  };
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -197,9 +424,57 @@ export default function Profile() {
           showsVerticalScrollIndicator={false}
         >
           <View style={[AppStyles.profileRow, { marginTop: 0 }]}>
-            <View style={AppStyles.avatarCircle}>
-              <Text style={AppStyles.avatarIcon}>🙂</Text>
+            <View style={AppStyles.avatarWrapper}>
+              {/* Avatar (image fills the circle; emoji fallback centered and not clipped) */}
+              <View
+                style={[
+                  AppStyles.avatarCircle,
+                  {
+                    width: AVATAR_SIZE,
+                    height: AVATAR_SIZE,
+                    borderRadius: AVATAR_SIZE / 2,
+                    overflow: 'hidden',
+                    padding: 0,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'transparent',
+                  },
+                ]}
+              >
+                {currentAvatarUri() ? (
+                  <Image
+                    source={{ uri: currentAvatarUri() }}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      resizeMode: 'cover',
+                    }}
+                  />
+                ) : (
+                  <Text
+                    style={{
+                      fontSize: AVATAR_SIZE * 0.58,
+                      lineHeight: AVATAR_SIZE,
+                      textAlign: 'center',
+                      includeFontPadding: false,
+                    }}
+                  >
+                    🙂
+                  </Text>
+                )}
+              </View>
+
+              {/* Edit label/button under avatar */}
+              <TouchableOpacity
+                onPress={openAvatarPicker}
+                style={{ marginTop: 8, alignItems: 'center', padding: 6 }}
+              >
+                <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                  Edit picture or avatar
+                </Text>
+              </TouchableOpacity>
             </View>
+
             <TextInput
               style={AppStyles.nameText}
               value={name || ''}
@@ -207,6 +482,11 @@ export default function Profile() {
               editable={true}
               placeholder="Your Name"
               placeholderTextColor={colors.textPrimary}
+              // Save when pressing Return if there are changes
+              onSubmitEditing={() => {
+                Keyboard.dismiss();
+                if (isDirty()) handleSave();
+              }}
             />
           </View>
 
@@ -215,17 +495,37 @@ export default function Profile() {
             <TextInput
               style={AppStyles.input}
               value={email}
-              // onChangeText={setEmail}
               editable={false}
-              // autoCapitalize="none"
             />
             <Text style={AppStyles.label}>Location</Text>
-            <TextInput
-              style={AppStyles.input}
-              value={location || ''}
-              onChangeText={setLocation}
-              editable={true}
-            />
+            <View style={{ zIndex: 1000 }}>
+              <DropDownPicker
+                open={open}
+                value={location}
+                items={items}
+                setOpen={setOpen}
+                setValue={setLocation}
+                setItems={setItems}
+                placeholder="Select your location..."
+                style={[AppStyles.input, { justifyContent: 'center' }]} // matches your input box
+                dropDownContainerStyle={{
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  backgroundColor: '#fff',
+                  borderRadius: 8,
+                  marginTop: 2,
+                }}
+                textStyle={{
+                  color: colors.textPrimary,
+                  fontSize: 16,
+                }}
+                placeholderStyle={{
+                  color: '#999',
+                }}
+                listMode="SCROLLVIEW"
+                searchable={false}
+              />
+            </View>
           </View>
 
           <TouchableOpacity
@@ -237,23 +537,34 @@ export default function Profile() {
 
           {user.services && Array.isArray(user.services) && (
             <View style={AppStyles.servicesContainer}>
-              {user.services.map(service => (
-                <ServiceCard
-                  key={service.service_id}
-                  image={service.image}
-                  title={service.name}
-                  price={`$${(service.price || 0).toFixed(2)}`}
-                  category={service.tag}
-                  onEdit={() => navigation.navigate('EditServices', {
-                    service_id: service.service_id || service.id,
-                  })}
-                  onDelete={() => handleDeleteService(service.service_id)}
-                />
-              ))}
+              {user.services.map((service, i) => {
+                // robust stable key: prefer service_id -> id -> fallback to composed string or index
+                const keyId = String(service.service_id ?? service.id ?? (`svc-${service.user_id ?? 'u'}-${service.name ?? i}`) ?? i);
+
+                // derive image object already normalized by enrichServicesWithDetailsIfNeeded
+                const img = service.image ?? null;
+
+                // ensure price formatting consistent
+                const priceStr = `$${(Number(service.price) || 0).toFixed(2)}`;
+
+                return (
+                  <ServiceCard
+                    key={keyId}
+                    image={img}
+                    title={service.name}
+                    price={priceStr}
+                    category={service.tag}
+                    onEdit={() => navigation.navigate('EditServices', {
+                      service_id: service.service_id || service.id,
+                    })}
+                    onDelete={() => handleDeleteService(service.service_id || service.id)}
+                  />
+                );
+              })}
             </View>
           )}
 
-          {email !== originalEmail || location !== originalLocation ? (
+          {isDirty() ? (
             <TouchableOpacity
               style={[AppStyles.addServicesBtn, { marginBottom: 24, marginTop: 10 }]}
               onPress={handleSave}
@@ -261,6 +572,12 @@ export default function Profile() {
               <Text style={AppStyles.addServicesText}>Save</Text>
             </TouchableOpacity>
           ) : null}
+          <TouchableOpacity
+            style={[AppStyles.addServicesBtn, { backgroundColor: '#ff4d4d', marginBottom: 24, marginTop: 10 }]}
+            onPress={handleLogout}
+          >
+            <Text style={AppStyles.addServicesText}>Logout</Text>
+          </TouchableOpacity>
         </ScrollView>
 
         <View style={styles.navBarContainer}>
@@ -280,10 +597,81 @@ export default function Profile() {
             <Ionicons name="person-outline" size={28} color="#333" />
           </TouchableOpacity>
         </View>
+
+        {/* Avatar selection modal */}
+        <Modal
+          visible={avatarModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setAvatarModalVisible(false)}
+        >
+          <View style={modalStyles.overlay}>
+            <View style={modalStyles.sheet}>
+              <Text style={modalStyles.title}>Choose profile picture</Text>
+
+              <ImageGalleryPicker
+                images={avatarSelection}
+                onChange={(newImgs) => setAvatarSelection(newImgs)}
+                maxImages={1}
+                thumbnailSize={120}
+              />
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+                <TouchableOpacity
+                  style={[AppStyles.addServicesBtn, { flex: 1, marginRight: 8 }]}
+                  onPress={() => {
+                    setAvatarSelection([]);
+                  }}
+                >
+                  <Text style={AppStyles.addServicesText}>Clear</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[AppStyles.addServicesBtn, { flex: 1, marginLeft: 8 }]}
+                  onPress={() => handleUploadAvatar(avatarSelection)}
+                  disabled={uploadingAvatar}
+                >
+                  {uploadingAvatar ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={AppStyles.addServicesText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={{ alignSelf: 'center', marginTop: 8 }}
+                onPress={() => setAvatarModalVisible(false)}
+              >
+                <Text style={{ color: '#999' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </TouchableWithoutFeedback>
   );
 }
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    minHeight: 260,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+});
 
 const styles = StyleSheet.create({
   navBarContainer: {

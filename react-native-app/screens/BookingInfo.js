@@ -10,23 +10,34 @@ import {
   KeyboardAvoidingView,
   Alert,
   ActivityIndicator,
+  Modal,
+  Dimensions,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Calendar } from "react-native-calendars";
 import { api } from "../src/api";
 
+const { height } = Dimensions.get("window");
 const DEMO_HEADERS = {};
 
+/**
+ * Turn "HH:MM:SS" (or "HH:MM") into a friendly label *without* shifting timezones.
+ * We treat the string as a wall-clock time and render it as-is.
+ */
 const toTimeLabel = (hhmmss) => {
   try {
-    const [h, m] = (hhmmss || "").split(":").map(Number);
+    const [h, m] = String(hhmmss || "").split(":").map((x) => parseInt(x || "0", 10));
+    if (Number.isNaN(h) || Number.isNaN(m)) return hhmmss || "";
+    // Build a local Date for *today* just to format; we keep the same wall-clock hour/min.
     const d = new Date();
-    d.setHours(h || 0, m || 0, 0, 0);
+    d.setHours(h, m, 0, 0);
+    // Use 2-digit to avoid locale quirks like "10:0"
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   } catch {
     return hhmmss || "";
   }
 };
+
 const firstDateKey = (obj) => Object.keys(obj || {})[0];
 
 export default function BookingInfo({ navigation, route }) {
@@ -42,7 +53,7 @@ export default function BookingInfo({ navigation, route }) {
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [slotsError, setSlotsError] = useState("");
 
-  // Form state (blank by default)
+  // Form state
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [email, setEmail] = useState("");
@@ -62,8 +73,13 @@ export default function BookingInfo({ navigation, route }) {
   }, [slots]);
 
   // Calendar & chip state
-  const [selectedDate, setSelectedDate] = useState(firstDateKey(availabilityMap) || new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(
+    firstDateKey(availabilityMap) || new Date().toISOString().slice(0, 10)
+  );
   const [selectedSlotId, setSelectedSlotId] = useState(null);
+
+  // NEW: time slot modal visibility
+  const [slotModalVisible, setSlotModalVisible] = useState(false);
 
   // If slots change and current date is no longer present, reset selection to first available
   useEffect(() => {
@@ -72,7 +88,6 @@ export default function BookingInfo({ navigation, route }) {
       setSelectedDate(firstDate || new Date().toISOString().slice(0, 10));
       setSelectedSlotId(null);
     } else {
-      // also clear slot if that specific slot no longer exists
       if (selectedSlotId) {
         const stillThere = (availabilityMap[selectedDate] || []).some((s) => s.id === selectedSlotId);
         if (!stillThere) setSelectedSlotId(null);
@@ -98,7 +113,7 @@ export default function BookingInfo({ navigation, route }) {
       setSlotsError("");
       setLoadingSlots(true);
       const data = await api(`/services/${serviceId}/`, { headers: { ...DEMO_HEADERS } });
-      // Expect data.availabilities already excludes booked slots per backend
+      // Expect data.availabilities to be [{id,date,start_time,end_time}] with times as "HH:MM:SS"
       setSlots(Array.isArray(data?.availabilities) ? data.availabilities : []);
       if (!routeName && data?.name) setServiceName(data.name);
       if (routePrice == null && data?.price != null) setPrice(data.price);
@@ -138,17 +153,15 @@ export default function BookingInfo({ navigation, route }) {
 
     try {
       setSubmitting(true);
-      const res = await api("/bookings/", {
+      await api("/bookings/", {
         method: "POST",
         body: JSON.stringify(payload),
         headers: { ...DEMO_HEADERS },
       });
-      // After booking, refetch in case user stays here
       await fetchSlots();
       Alert.alert("Booked!", "Your appointment has been created.", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
-      // console.log("Booking created:", res);
     } catch (e) {
       Alert.alert("Booking failed", e?.message?.toString() || "Please try again.");
     } finally {
@@ -260,7 +273,29 @@ export default function BookingInfo({ navigation, route }) {
                 />
               </View>
 
-              {/* Time chips */}
+              {/* Button to open modal selector */}
+              <View style={{ marginTop: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setSlotModalVisible(true)}
+                  style={{
+                    alignSelf: "flex-start",
+                    backgroundColor: "#F3F4F6",
+                    borderWidth: 1,
+                    borderColor: "#E5E7EB",
+                    borderRadius: 10,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                  }}
+                >
+                  <Text style={{ color: "#111827" }}>
+                    {selectedSlotId
+                      ? `Change time (${toTimeLabel((daySlots.find(s => s.id === selectedSlotId) || {}).start_time)})`
+                      : "Choose a time"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Inline time chips */}
               {daySlots.length > 0 ? (
                 <View style={styles.timeListCard}>
                   <View style={styles.chipsRow}>
@@ -300,6 +335,73 @@ export default function BookingInfo({ navigation, route }) {
 
           <View style={{ height: 40 }} />
         </ScrollView>
+
+        {/* ===== Time Slot Modal ===== */}
+        <Modal
+          visible={slotModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setSlotModalVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View
+              style={[
+                styles.slotSheet,
+                { height: Math.max(320, Math.round(height * 0.5)) },
+              ]}
+            >
+              {/* Header */}
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setSlotModalVisible(false)}>
+                  <Text style={styles.cancelBtn}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Select a time</Text>
+                <TouchableOpacity onPress={() => setSlotModalVisible(false)}>
+                  <Text style={styles.doneBtn}>
+                    {selectedSlotId ? "Done" : "Close"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Date label */}
+              <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+                <Text style={{ color: "#6B7280" }}>{selectedDate}</Text>
+              </View>
+
+              {/* Time chips list */}
+              <View style={{ flex: 1, paddingHorizontal: 12 }}>
+                {daySlots.length > 0 ? (
+                  <View style={styles.chipsRow}>
+                    {daySlots.map((slot) => {
+                      const selected = selectedSlotId === slot.id;
+                      return (
+                        <TouchableOpacity
+                          key={slot.id}
+                          style={[styles.timeChip, selected && styles.timeChipSelected]}
+                          onPress={() => setSelectedSlotId(slot.id)}
+                          activeOpacity={0.9}
+                        >
+                          <Text
+                            style={[
+                              styles.timeChipText,
+                              selected && styles.timeChipTextSelected,
+                            ]}
+                          >
+                            {toTimeLabel(slot.start_time)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
+                    <Text style={{ color: "#6B7280" }}>No times available for this date.</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -397,4 +499,28 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   saveText: { fontWeight: "700", color: "white", fontSize: 16 },
+
+  /* ---- Modal styles ---- */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  slotSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalTitle: { fontWeight: "700", fontSize: 16 },
+  cancelBtn: { color: "#6B7280", fontSize: 16 },
+  doneBtn: { color: "#ff6b8a", fontSize: 16, fontWeight: "700" },
 });

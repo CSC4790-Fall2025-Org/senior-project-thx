@@ -68,6 +68,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'email', 'name', 'password']  # No username
 
+    def validate_email(self, value):
+        if not value.lower().endswith('@villanova.edu'):
+            raise serializers.ValidationError("Email must be a valid @villanova.edu address.")
+        return value
+
     def create(self, validated_data):
         email = validated_data['email']
         name = validated_data.get('name', '')
