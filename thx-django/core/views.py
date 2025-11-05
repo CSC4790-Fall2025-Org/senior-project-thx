@@ -174,6 +174,32 @@ class ServiceViewSet(viewsets.ModelViewSet):
         out = ServiceSerializer(instance, context={"request": request}).data
         return Response(out)
 
+    @action(detail=True, methods=["post"], url_path="toggle-save")
+    def toggle_save(self, request, id=None):
+        """
+        POST /api/services/{id}/toggle-save/
+        Toggles whether the logged-in user has saved this service.
+        Returns JSON: {"saved": true/false}
+        """
+        service = self.get_object()
+        user = resolve_request_user(request)  # your helper for getting demo/auth user
+
+        if service in user.saved_services.all():
+            user.saved_services.remove(service)
+            saved = False
+        else:
+            user.saved_services.add(service)
+            saved = True
+
+        return Response({"saved": saved}, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=["get"], url_path="saved")
+    def list_saved(self, request):
+        user = resolve_request_user(request)
+        qs = user.saved_services.all()
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
     def destroy(self, request, *args, **kwargs):
         if not request.user or not request.user.is_authenticated:
             return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)

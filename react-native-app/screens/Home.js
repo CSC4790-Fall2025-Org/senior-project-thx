@@ -33,7 +33,6 @@ const Home = ({navigation}) => {
     const [profileLoading, setProfileLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState(null);
     const [profileImageUri, setProfileImageUri] = useState(null);
-
     const [services, setServices] = useState([]);
     const [searchText, setSearchText] = useState('');
     const [selectedTag, setSelectedTag] = useState('');
