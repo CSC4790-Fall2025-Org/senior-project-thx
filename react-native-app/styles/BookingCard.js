@@ -31,7 +31,11 @@ export default function BookingCard({
       <View style={styles.info}>
         <Text style={styles.service}>{service}</Text>
         <Text style={styles.stylist}>
-          By <Text style={styles.stylistBold}>{stylist}</Text>
+          {showDeleteIcon ? (
+            <>by <Text style={styles.stylistBold}>{stylist}</Text></>
+          ) : (
+            <>Booked by <Text style={styles.stylistBold}>{stylist}</Text></>
+          )}
         </Text>
         <View style={styles.detailsRow}>
           <View style={styles.detailCol}>
@@ -121,7 +125,7 @@ const styles = StyleSheet.create({
     marginTop: width * 0.01,
   },
   detailCol: {
-    marginRight: width * 0.07,
+    marginRight: width * 0.02,
     justifyContent: 'center',
   },
   detailLabel: {
@@ -131,7 +135,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   detailText: {
-    fontSize: width * 0.037,
+    fontSize: width * 0.032,
     color: colors.textPrimary,
     fontWeight: '600',
   },

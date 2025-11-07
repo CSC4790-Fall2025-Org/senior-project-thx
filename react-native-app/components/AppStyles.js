@@ -37,7 +37,7 @@ export default StyleSheet.create({
     justifyContent: 'center',
     marginTop: height * 0.11, // ~11% of screen height
     marginBottom: height * 0.01,
-    paddingHorizontal: width * 0.08, // 8% of screen width
+    paddingHorizontal: width * 0.07, // 8% of screen width
   },
   avatarCircle: {
     width: width * 0.20, // 20% of screen width

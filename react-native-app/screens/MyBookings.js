@@ -161,13 +161,15 @@ export default function MyBookings({ navigation }) {
         style={styles.headerBg}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
+
       >
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <Image source ={require('../assets/logo.png')} style={{ width: 100, height: 60, resizeMode: 'contain' }} />
+        {/* <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={width * 0.03} color={colors.heading} />
           <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.avatarWrapper}
           onPress={() => navigation.navigate('Profile')}
           activeOpacity={0.8}
@@ -181,7 +183,7 @@ export default function MyBookings({ navigation }) {
               )}
             </View>
           </View>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </LinearGradient>
 
       {/* Main content */}
@@ -273,8 +275,8 @@ const styles = StyleSheet.create({
     height: height * 0.13,
     paddingTop: height * 0.06,
     paddingHorizontal: width * 0.05,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    alignContents: 'center',
     alignItems: 'center',
     position: 'relative',
   },

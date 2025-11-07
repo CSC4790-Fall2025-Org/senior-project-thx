@@ -25,8 +25,13 @@ export default StyleSheet.create({
   },
   headerBg: {
     width: width,
-    height: height * 0.10, // 10% of screen height
+    height: height * 0.13, // 10% of screen height
     position: 'absolute',
+    paddingTop: height * 0.06,
+    
+    justifyContent: 'center',
+    alignContents: 'center',
+    alignItems: 'center',
     top: 0,
     left: 0,
     zIndex: 0,

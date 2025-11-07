@@ -222,7 +222,7 @@ export default function AddServices({ navigation }) {
         <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {/* Service */}
           <Text style={styles.label}>Service</Text>
-          <TextInput style={styles.input} value={service} onChangeText={setService} placeholder="Enter service name" autoCapitalize="sentences" returnKeyType="done" />
+          <TextInput style={styles.input} value={service} onChangeText={setService} placeholder="Enter service name" autoCapitalize="sentences" returnKeyType="done" maxLength={15} />
 
           {/* Description */}
           <Text style={styles.label}>Description</Text>
