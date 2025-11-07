@@ -395,6 +395,7 @@ export default function EditServices({ navigation, route }) {
               <View style={{ flex: 1, alignSelf: "stretch" }}>
                 <DateTimePicker
                   value={tempTime}
+                  textColor="#000"
                   mode="time"
                   display="spinner"
                   onChange={(_, d) => { if (d) setTempTime(d); }}
