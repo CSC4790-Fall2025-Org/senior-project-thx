@@ -219,7 +219,7 @@ const Home = ({navigation}) => {
                 start={{ x: 0, y: 1 }} 
                 end={{ x: 1, y: 0 }} 
             > 
-                <Text style= {styles.helloText}>Hello!</Text> 
+                <Image source ={require('../assets/logo.png')} style={styles.logo} />
 
                 {/* Avatar with pink outer background and white inner circle (image or emoji) */}
                 <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}>
@@ -325,10 +325,10 @@ const styles = StyleSheet.create({
 
   // LINEAR GRADIENT CONTENT
   gradient: { height: height * 0.245, width: '100%', position: 'relative', top: 0, left: 0, zIndex: 1 },
-  helloText: { position: 'absolute', left: '4.6%', top: '42.8%', fontSize: 20, fontWeight: 'bold', fontFamily: 'Poppins' },
-
+  // helloText: { position: 'absolute', left: '4.6%', top: '42.8%', fontSize: 20, fontWeight: 'bold', fontFamily: 'Poppins' },
+  logo: { position: 'absolute', left: '-5%', top: '30%', height: 60, width: 150, resizeMode: 'contain' },
   // avatar/frame
-  profileFrame: { position: 'absolute', right: '4.6%', top: '35%', height: 56, width: 56, borderRadius: 56, alignItems: 'center', justifyContent: 'center' },
+  profileFrame: { position: 'absolute', right: '4.6%', top: '30.9%', height: 56, width: 56, borderRadius: 56, alignItems: 'center', justifyContent: 'center' },
   avatarOuter: { width: 56, height: 56, borderRadius: 56, backgroundColor: 'rgba(237,118,120,0.12)', alignItems: 'center', justifyContent: 'center' },
   avatarInner: { width: 48, height: 48, borderRadius: 48, backgroundColor: '#fff', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   profileImage: { width: '100%', height: '100%', resizeMode: 'cover' },
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
 
   filterFrame: { position: 'absolute', right: '5.2%', top: '63.2%', height: 47, width: 47, borderRadius: 10, backgroundColor: '#F6C484' },
   filterIcon: { position: 'absolute', left: '23.5%', top: '23.5%', height: 25, width: 25 },
-  textInputBox: { position: 'absolute', left: '4.6%', top: '63.6%', height: 47, width: 375, borderRadius: 10, backgroundColor: '#FFFFFF' },
+  textInputBox: { position: 'absolute', left: '4.1%', top: '63.6%', height: 47, width: '91.7%', borderRadius: 10, backgroundColor: '#FFFFFF' },
   searchIcon: { position: 'relative', left: '5.4%', top: '25%', height: 24, width: 24 },
   input: { position: 'absolute', left: '18.3%', top: '29.8%', height: 18, width: 227, fontFamily: 'Poppins', fontSize: 13, color: '#000', padding: 0 },
 
@@ -345,10 +345,10 @@ const styles = StyleSheet.create({
   topServiceText: { position: 'absolute', left: '4.4%', top: '8%', fontSize: 24, fontWeight: 'bold', fontFamily: 'Poppins' },
   carouselContainer: { paddingLeft: 20, paddingRight: 20, marginTop: 60, gap: 20, flexDirection: 'row' },
   serviceItem: { alignItems: 'center', width: 92 },
-  serviceCircle: { height: 85, width: 85, borderRadius: 1000, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.08, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8 },
+  serviceCircle: { height: '78%', width: '90%', borderRadius: 1000, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.08, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8 },
   serviceCircleActive: { borderWidth: 2, borderColor: '#ED7678' },
   iconWrapper: { justifyContent: 'center', alignItems: 'center' },
-  serviceTypeText: { marginTop: 8, textAlign: 'center', fontSize: 13, fontFamily: 'Poppins', color: '#594C46' },
+  serviceTypeText: { marginTop: '5.2%', textAlign: 'center', fontSize: 13, fontFamily: 'Poppins', color: '#594C46' },
 
   // SERVICES LIST
   serviceContainer: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
@@ -357,14 +357,14 @@ const styles = StyleSheet.create({
   servicesScroll: { paddingBottom: 90, gap: 10 },
 
   // SERVICE CARD CONTENT
-  serviceCard: { height: 150, width: 350, borderRadius: 15, backgroundColor: '#fff', alignSelf: 'center', justifyContent: 'center', borderBottomColor: '#ccc', borderBottomWidth: 2 },
+  serviceCard: { height: 150, width: '100%', borderRadius: 15, backgroundColor: '#fff', alignSelf: 'center', justifyContent: 'center', borderBottomColor: '#ccc', borderBottomWidth: 2 },
   cardContent: { flexDirection: 'row', alignItems: 'center', padding: 15, position: 'relative' },
   serviceImage: { width: 120, height: 120, borderRadius: 10, marginRight: 15, backgroundColor: '#EEE' },
   serviceInfo: { flex: 1 },
   serviceType: { fontSize: 16, fontWeight: '600', fontFamily: 'Poppins', color: '#1E1E1E', marginBottom: 5 },
   providerName: { fontSize: 13, fontWeight: '500', fontFamily: 'Poppins', color: '#555', marginBottom: 5 },
   serviceCost: { fontSize: 18, fontFamily: 'Poppins', fontWeight: 'bold', color: '#000000', marginBottom: 10 },
-  bookButton: { alignSelf: 'flex-start', position: 'absolute', right: '5.8%', top: '60%', backgroundColor: '#ED7678', paddingHorizontal: 15, paddingVertical: 5, borderRadius: 10 },
+  bookButton: { alignSelf: 'flex-start', position: 'absolute', right: '5.8%', top: '90%', backgroundColor: '#ED7678', paddingHorizontal: 15, paddingVertical: 5, borderRadius: 10 },
   bookButtonText: { fontFamily: 'Poppins', fontSize: 12, color: '#FFFFFF' },
 
   // NAV BAR

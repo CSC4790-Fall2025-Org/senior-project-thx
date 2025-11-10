@@ -385,17 +385,25 @@ const styles = StyleSheet.create({
 
   gradient: { height: height * 0.29, width: '100%' },
   backInline: { flexDirection: 'row', alignItems: 'center' },
-  backButton: { position: 'absolute', top: '20%', left: '3.6%' },
+  backButton: {  top: '20%', left: '3.6%' },
 
-  textDetails: { position: 'absolute', top: '28.7%', left: '5%' },
+  textDetails: {
+    position: 'absolute',
+    left: 16,               
+    top: '45%',            
+    transform: [{ translateY: -50 }], 
+    width: '60%',
+    justifyContent: 'center', 
+    alignItems: 'flex-start', 
+  },
   imageCarouselWrapper: { position: 'absolute', top: '28.7%', right: 0, height: 160, width: 160, paddingRight: 8 },
 
-  serviceImage: { width: 160, height: 160, borderRadius: 10, marginLeft: 8 },
+  serviceImage: { width: 140, height: 140, borderRadius: 10, justifyContent: 'right', alignItems: 'center' },
 
-  type: { fontSize: 35, fontWeight: 'bold', marginBottom: 1, marginTop: 25, color: '#3C1E10' },
+  type: { fontSize: 25, fontWeight: 'bold', marginBottom: 1, marginTop: 25, color: '#3C1E10' },
   provider: { fontSize: 15, color: '#3C1E10', marginBottom: 10 },
-  cost: { fontSize: 25, fontWeight: 'bold', color: '#3C1E10' },
-  favButton: { position: 'absolute', right: -60, top: 10 },
+  cost: { fontSize: 18, fontWeight: 'bold', color: '#3C1E10' },
+  favButton: { marginTop: 8, alignSelf: 'flex-start' },
 
   extraButtonsContainer: {
     width: '100%',
@@ -405,8 +413,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   square: {
-    width: 120,
-    height: 120,
+    width: 115,
+    height: 115,
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',

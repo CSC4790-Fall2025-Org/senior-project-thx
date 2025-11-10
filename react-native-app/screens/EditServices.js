@@ -287,7 +287,7 @@ export default function EditServices({ navigation, route }) {
 
         <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>Service</Text>
-          <TextInput style={styles.input} value={service} onChangeText={setService} placeholder="Enter service name" autoCapitalize="sentences" returnKeyType="done" />
+          <TextInput style={styles.input} value={service} onChangeText={setService} placeholder="Enter service name" autoCapitalize="sentences" returnKeyType="done" maxLength={15}/>
 
           <Text style={styles.label}>Description</Text>
           <TextInput style={[styles.input, styles.textarea]} value={description} onChangeText={setDescription} placeholder="Describe your service" multiline scrollEnabled textAlignVertical="top" />
@@ -395,6 +395,7 @@ export default function EditServices({ navigation, route }) {
               <View style={{ flex: 1, alignSelf: "stretch" }}>
                 <DateTimePicker
                   value={tempTime}
+                  textColor="#000"
                   mode="time"
                   display="spinner"
                   onChange={(_, d) => { if (d) setTempTime(d); }}

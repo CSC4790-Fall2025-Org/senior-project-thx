@@ -222,7 +222,7 @@ export default function AddServices({ navigation }) {
         <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {/* Service */}
           <Text style={styles.label}>Service</Text>
-          <TextInput style={styles.input} value={service} onChangeText={setService} placeholder="Enter service name" autoCapitalize="sentences" returnKeyType="done" />
+          <TextInput style={styles.input} value={service} onChangeText={setService} placeholder="Enter service name" autoCapitalize="sentences" returnKeyType="done" maxLength={15} />
 
           {/* Description */}
           <Text style={styles.label}>Description</Text>
@@ -343,6 +343,7 @@ export default function AddServices({ navigation }) {
               <View style={{ flex: 1, alignSelf: "stretch" }}>
                 <DateTimePicker
                   value={tempTime}
+                  textColor="#000"
                   mode="time"
                   display="spinner"
                   onChange={(_, d) => { if (d) setTempTime(d); }}

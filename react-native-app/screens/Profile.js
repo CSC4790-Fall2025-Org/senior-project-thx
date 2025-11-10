@@ -27,7 +27,7 @@ import ImageGalleryPicker from '../components/ImageGalleryPicker'; // adjust pat
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
-const HEADER_HEIGHT = height * 0.10;
+const HEADER_HEIGHT = height * 0.13;
 const AVATAR_SIZE = 96; // adjust avatar size here
 
 const buildAbsolute = (url) => {
@@ -416,7 +416,9 @@ export default function Profile() {
           end={{ x: 1, y: 0 }}
           pointerEvents="none"
           style={[AppStyles.headerBg, { zIndex: 20, elevation: 20 }]}
-        />
+        >
+          <Image source ={require('../assets/logo.png')} style={{ width: 100, height: 60, resizeMode: 'contain' }} />
+        </LinearGradient>
 
         <ScrollView
           style={{ flex: 1, width: '100%' }}
@@ -435,6 +437,7 @@ export default function Profile() {
                     borderRadius: AVATAR_SIZE / 2,
                     overflow: 'hidden',
                     padding: 0,
+                    left: '18%',
                     alignItems: 'center',
                     justifyContent: 'center',
                     backgroundColor: 'transparent',
@@ -476,12 +479,14 @@ export default function Profile() {
             </View>
 
             <TextInput
-              style={AppStyles.nameText}
+              style={[AppStyles.nameText]}
               value={name || ''}
               onChangeText={setName}
               editable={true}
               placeholder="Your Name"
               placeholderTextColor={colors.textPrimary}
+              numberOfLines={1}
+              maxLength={10}
               // Save when pressing Return if there are changes
               onSubmitEditing={() => {
                 Keyboard.dismiss();

@@ -94,7 +94,7 @@ const SavedServices = ({navigation}) => {
                 start={{ x: 0, y: 1 }} 
                 end={{ x: 1, y: 0 }} 
             > 
-                <Text style= {styles.helloText}>Hello!</Text> 
+                 <Image source ={require('../assets/logo.png')} style={styles.logo} /> 
 
                 {/* Avatar with pink outer background and white inner circle (image or emoji) */}
                 <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}>
@@ -171,18 +171,20 @@ const styles = StyleSheet.create({
         left: 0, 
         zIndex: 1, 
     }, 
-    helloText: { 
-        position: 'absolute', 
-        left: '4.6%', 
-        top: '42.8%', 
-        fontSize: 20, 
-        fontWeight: 'bold', 
-        fontFamily: 'Poppins', 
-    }, 
+    logo: { position: 'absolute', left: '-5%', top: '30%', height: 60, width: 150, resizeMode: 'contain' },
+
+    // helloText: { 
+    //     position: 'absolute', 
+    //     left: '4.6%', 
+    //     top: '42.8%', 
+    //     fontSize: 20, 
+    //     fontWeight: 'bold', 
+    //     fontFamily: 'Poppins', 
+    // }, 
     profileFrame: { 
         position: 'absolute', 
         right:'4.6%', 
-        top: '35%', 
+        top: '30.9%', 
         height: 56, 
         width: 56, 
         borderRadius: 56, 
@@ -211,10 +213,10 @@ const styles = StyleSheet.create({
     }, 
     textInputBox: { 
         position: 'absolute', 
-        left:'4.6%', 
+        left:'4.1%', 
         top: '63.6%', 
         height: 47, 
-        width: 301, 
+        width: '91.7%', 
         borderRadius: 10, 
         backgroundColor: '#FFFFFF', 
     }, 
