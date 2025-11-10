@@ -286,18 +286,16 @@ class BookingViewSet(viewsets.ModelViewSet):
     #     return Response(status=status.HTTP_204_NO_CONTENT)
     def destroy(self, request, *args, **kwargs):
         user = resolve_request_user(request)
-    
-        # ✅ Allow deletion if the user is either the client or the provider
+
         instance = get_object_or_404(
             Booking.objects.filter(Q(user=user) | Q(service__user=user)),
             pk=kwargs["pk"]
         )
-    
-        # ✅ Safe freeing of availability slot
+
         time_obj = getattr(instance, "time", None)
         if time_obj and hasattr(time_obj, "is_booked"):
             time_obj.is_booked = False
             time_obj.save(update_fields=["is_booked"])
-    
+
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
