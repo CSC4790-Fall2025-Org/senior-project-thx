@@ -8,6 +8,7 @@ from rest_framework.exceptions import ParseError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
+from django.db.models import Q
 import logging
 import json
 from datetime import datetime, date, time
@@ -242,15 +243,28 @@ class BookingViewSet(viewsets.ModelViewSet):
                 or self.request.headers.get("X-Bookings-Role")
                 or "client").lower()
 
-        if role not in {"client", "provider"}:
-            raise ParseError(detail="Invalid role. Use 'client' or 'provider'.")
+        # if role not in {"client", "provider"}:
+        #     raise ParseError(detail="Invalid role. Use 'client' or 'provider'.")
 
         qs = self.queryset
         if role == "provider":
-            # Bookings made on services that this user provides
             return qs.filter(service__user=user)
-        # role == "client" (default): bookings this user made
-        return qs.filter(user=user)
+        elif role == "client":
+            return qs.filter(user=user)
+        else:
+            return qs.filter(Q(user=user) | Q(service__user=user))
+        # if role == "provider":
+        #     return qs.filter(service__user=user)
+        # elif role == "client":
+        #     return qs.filter(user=user)
+        # else:
+        # # Allow both roles if unspecified (for DELETE calls that don't send ?role=)
+        #     return qs.filter(Q(user=user) | Q(service__user=user))
+        # if role == "provider":
+        #     # Bookings made on services that this user provides
+        #     return qs.filter(service__user=user)
+        # # role == "client" (default): bookings this user made
+        # return qs.filter(user=user)
 
     def create(self, request, *args, **kwargs):
         user = resolve_request_user(request)
@@ -264,9 +278,26 @@ class BookingViewSet(viewsets.ModelViewSet):
         out = self.get_serializer(booking)
         return Response(out.data, status=status.HTTP_201_CREATED)
 
+    # def destroy(self, request, *args, **kwargs):
+    #     # NOTE: Deletion remains scoped to client-owned bookings.
+    #     # Providers won't be able to delete client bookings through this action.
+    #     instance = self.get_object()
+    #     instance.delete()
+    #     return Response(status=status.HTTP_204_NO_CONTENT)
     def destroy(self, request, *args, **kwargs):
-        # NOTE: Deletion remains scoped to client-owned bookings.
-        # Providers won't be able to delete client bookings through this action.
-        instance = self.get_object()
+        user = resolve_request_user(request)
+    
+        # ✅ Allow deletion if the user is either the client or the provider
+        instance = get_object_or_404(
+            Booking.objects.filter(Q(user=user) | Q(service__user=user)),
+            pk=kwargs["pk"]
+        )
+    
+        # ✅ Safe freeing of availability slot
+        time_obj = getattr(instance, "time", None)
+        if time_obj and hasattr(time_obj, "is_booked"):
+            time_obj.is_booked = False
+            time_obj.save(update_fields=["is_booked"])
+    
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
