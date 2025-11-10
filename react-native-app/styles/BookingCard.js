@@ -22,11 +22,11 @@ export default function BookingCard({
   onDelete,
   onMessage,
   booking,
-  showDeleteIcon // pass this prop from MyBookings.js to show delete icon instead of menu
+  showDeleteIcon 
 }) {
   const navigation = useNavigation();
   const [modalVisible, setModalVisible] = useState(false);
-  // Only do the confirmation prompt ONCE, delegate the deletion and confirmation message to parent
+  
   const handleDelete = async () => {
     if (!bookingId) {
       Alert.alert("Error", "Booking ID is missing");
@@ -77,7 +77,7 @@ export default function BookingCard({
         {showDeleteIcon ? (
           <TouchableOpacity
             style={styles.menuIcon}
-            onPress={() => onDelete && onDelete()} // just call parent
+            onPress={() => onDelete && onDelete()} 
             accessibilityLabel="Delete Booking"
           >
             <Feather name="trash-2" size={width * 0.05} color={colors.gradientEnd} />
@@ -105,14 +105,12 @@ export default function BookingCard({
   <View style={styles.popup}>
     <Text style={styles.popupTitle}>Client Info</Text>
 
-    {/* Evenly spaced info container */}
     <View style={styles.infoContainer}>
       <Text style={styles.popupTextLeft}>Booked By: {clientName || 'N/A'}</Text>
       <Text style={styles.popupTextLeft}>Email: {clientEmail || 'N/A'}</Text>
       <Text style={styles.popupTextLeft}>Suggested Location: {location || 'N/A'}</Text>
     </View>
 
-    {/* Delete Booking Button */}
     <TouchableOpacity
       style={styles.deleteButton}
       onPress={() => {
@@ -124,7 +122,6 @@ export default function BookingCard({
       <Text style={styles.deleteText}>Delete Booking</Text>
     </TouchableOpacity>
 
-    {/* Close Button */}
     <TouchableOpacity
       style={[styles.closeButton, { marginTop: 10 }]}
       onPress={() => setModalVisible(false)}
