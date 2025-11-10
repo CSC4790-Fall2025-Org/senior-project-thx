@@ -21,6 +21,7 @@ import Icon from "react-native-vector-icons/Ionicons";
 import ImageGalleryPicker from "../components/ImageGalleryPicker";
 import { api } from "../src/api";
 import { API_BASE } from "../src/config";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get("window");
 
@@ -121,6 +122,15 @@ export default function EditServices({ navigation, route }) {
   const [timeModalVisible, setTimeModalVisible] = useState(false);
   const [timeEditing, setTimeEditing] = useState(null); // { dateKey, id, field }
   const [tempTime, setTempTime] = useState(new Date());
+
+  const readAccessToken = async () => {
+    const keys = ['access_token', 'access', 'token', 'authToken'];
+    for (const k of keys) {
+      const v = await AsyncStorage.getItem(k);
+      if (v) return v;
+    }
+    return null;
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -233,14 +243,6 @@ export default function EditServices({ navigation, route }) {
       const currentRemoteIds = (images || []).map((i) => i.id).filter(Boolean);
       const removedIds = originalImageIds.filter((id) => !currentRemoteIds.includes(id));
 
-      if (removedIds.length > 0) {
-        await Promise.all(
-          removedIds.map((id) =>
-            api(`/service-images/${id}/`, { method: "DELETE" }).catch(() => null)
-          )
-        );
-      }
-
       const fd = new FormData();
       fd.append("name", service);
       fd.append("description", description);
@@ -248,21 +250,64 @@ export default function EditServices({ navigation, route }) {
       fd.append("type", tag);
       fd.append("availability", JSON.stringify(availability));
 
-      localImages.forEach((img) => {
+      if (removedIds.length > 0) {
+        // tell server to delete those existing images
+        fd.append("remove_image_ids", JSON.stringify(removedIds));
+      }
+
+      localImages.forEach((img, idx) => {
         const uri = img.uri;
         const filename = uri.split("/").pop();
         const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : "image/jpeg";
-        fd.append("images", { uri, name: filename, type });
+        const type = match ? `image/${match[1].toLowerCase()}` : "image/jpeg";
+        // ensure unique name if multiple files
+        fd.append("images", { uri, name: filename || `photo_${idx}.jpg`, type });
       });
 
-      await api(`/services/${serviceId}/`, { method: "PATCH", body: fd });
+      // Use fetch so we control headers (do NOT set Content-Type)
+      const accessToken = await readAccessToken();
+      const headers = {};
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+      const resp = await fetch(`${API_BASE}/services/${serviceId}/`, {
+        method: "PATCH",
+        headers,
+        body: fd,
+      });
+
+      const text = await resp.text();
+      if (!resp.ok) {
+        throw new Error(text || `HTTP ${resp.status}`);
+      }
+
+      let updated = null;
+      try { updated = JSON.parse(text); } catch (e) { /* ignore */ }
+
+      if (updated) {
+        // normalize returned images and update state so UI reflects server canonical response
+        const srvImages = Array.isArray(updated.images) ? updated.images : updated.image ? [updated.image] : [];
+        const normalized = srvImages
+          .map((u) => {
+            if (!u) return null;
+            if (typeof u === "string") return { uri: buildAbsolute(u) };
+            if (u.url) return { id: u.id, uri: buildAbsolute(u.url) };
+            if (u.uri) return { id: u.id, uri: u.uri };
+            return null;
+          })
+          .filter(Boolean);
+        setImages(normalized);
+        setOriginalImageIds(normalized.map((i) => i.id).filter(Boolean));
+        // optionally update other fields in UI from returned object
+        setService(updated.name || service);
+        setDescription(updated.description || description);
+        setPrice(String(updated.price ?? price));
+        setTag(updated.type || tag);
+      }
 
       Alert.alert("Saved", "Service updated successfully!");
-
-      // Optionally refresh
       navigation?.goBack?.();
     } catch (e) {
+      console.log('[EditServices onSave] error:', e);
       Alert.alert("Error", String(e.message || e));
     }
   };
@@ -271,14 +316,7 @@ export default function EditServices({ navigation, route }) {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={height * 0.01}>
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => {
-              if (navigation.canGoBack()) navigation.goBack();
-              else navigation.reset({ index: 0, routes: [{ name: "Profile", params: { refresh: true } }] });
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={{ zIndex: 2 }}
-          >
+          <TouchableOpacity onPress={() => { if (navigation.canGoBack()) navigation.goBack(); else navigation.reset({ index: 0, routes: [{ name: "Profile", params: { refresh: true } }] }); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ zIndex: 2 }}>
             <Text style={styles.backText}>‹ Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Edit Services</Text>
@@ -303,62 +341,25 @@ export default function EditServices({ navigation, route }) {
 
           <Text style={styles.label}>Availability</Text>
           <View style={styles.calendarWrap}>
-            <Calendar
-              current={selectedDate}
-              onDayPress={(d) => setSelectedDate(d.dateString)}
-              markedDates={markedDates}
-              minDate={tomorrowISO()} // 🔒 disallow today & earlier
-              theme={{
-                textSectionTitleColor: "#9CA3AF",
-                selectedDayBackgroundColor: "#FFD9E1",
-                selectedDayTextColor: "#111827",
-                todayTextColor: "#9CA3AF", // muted since disabled
-                arrowColor: "#ff6b8a",
-              }}
-              style={styles.calendar}
-            />
+            <Calendar current={selectedDate} onDayPress={(d) => setSelectedDate(d.dateString)} markedDates={markedDates} minDate={tomorrowISO()} theme={{ textSectionTitleColor: "#9CA3AF", selectedDayBackgroundColor: "#FFD9E1", selectedDayTextColor: "#111827", todayTextColor: "#9CA3AF", arrowColor: "#ff6b8a", }} style={styles.calendar} />
           </View>
 
-          {/* Lock banner */}
-          {dateIsLocked && (
-            <View style={styles.lockBanner}>
-              <Icon name="lock-closed-outline" size={16} color="#6B7280" />
-              <Text style={styles.lockText}>Today and past dates are disabled. Pick a future date.</Text>
-            </View>
-          )}
+          {dateIsLocked && (<View style={styles.lockBanner}><Icon name="lock-closed-outline" size={16} color="#6B7280" /><Text style={styles.lockText}>Today and past dates are disabled. Pick a future date.</Text></View>)}
 
           {daySlots.map((slot) => (
             <View key={slot.id} style={styles.slotRow}>
-              <TouchableOpacity
-                style={[styles.timeBtn, styles.timeBtnLeft, dateIsLocked && styles.timeBtnDisabled]}
-                onPress={() => openTimePicker(slot, "start")}
-                disabled={dateIsLocked}
-              >
+              <TouchableOpacity style={[styles.timeBtn, styles.timeBtnLeft, dateIsLocked && styles.timeBtnDisabled]} onPress={() => openTimePicker(slot, "start")} disabled={dateIsLocked}>
                 <Text style={[styles.timeText, dateIsLocked && styles.timeTextDisabled]}>{toTimeLabel(slot.start)}</Text>
               </TouchableOpacity>
               <Text style={styles.toDash}>—</Text>
-              <TouchableOpacity
-                style={[styles.timeBtn, styles.timeBtnRight, dateIsLocked && styles.timeBtnDisabled]}
-                onPress={() => openTimePicker(slot, "end")}
-                disabled={dateIsLocked}
-              >
+              <TouchableOpacity style={[styles.timeBtn, styles.timeBtnRight, dateIsLocked && styles.timeBtnDisabled]} onPress={() => openTimePicker(slot, "end")} disabled={dateIsLocked}>
                 <Text style={[styles.timeText, dateIsLocked && styles.timeTextDisabled]}>{toTimeLabel(slot.end)}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => (dateIsLocked ? null : removeSlot(slot.id))}
-                style={[styles.iconBtn, dateIsLocked && styles.iconBtnDisabled]}
-                accessibilityLabel="Remove slot"
-                disabled={dateIsLocked}
-              >
+              <TouchableOpacity onPress={() => (dateIsLocked ? null : removeSlot(slot.id))} style={[styles.iconBtn, dateIsLocked && styles.iconBtnDisabled]} accessibilityLabel="Remove slot" disabled={dateIsLocked}>
                 <Icon name="close" size={width * 0.045} color={dateIsLocked ? "#C7CAD1" : "#6B7280"} />
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={addSlot}
-                style={[styles.iconBtn, dateIsLocked && styles.iconBtnDisabled]}
-                accessibilityLabel="Add slot"
-                disabled={dateIsLocked}
-              >
+              <TouchableOpacity onPress={addSlot} style={[styles.iconBtn, dateIsLocked && styles.iconBtnDisabled]} accessibilityLabel="Add slot" disabled={dateIsLocked}>
                 <Icon name="add" size={width * 0.05} color={dateIsLocked ? "#C7CAD1" : "#6B7280"} />
               </TouchableOpacity>
             </View>
@@ -393,13 +394,7 @@ export default function EditServices({ navigation, route }) {
                 <Text style={{ color: "#6B7280" }}>{selectedDate}</Text>
               </View>
               <View style={{ flex: 1, alignSelf: "stretch" }}>
-                <DateTimePicker
-                  value={tempTime}
-                  mode="time"
-                  display="spinner"
-                  onChange={(_, d) => { if (d) setTempTime(d); }}
-                  style={{ flex: 1, alignSelf: "stretch" }}
-                />
+                <DateTimePicker value={tempTime} mode="time" display="spinner" onChange={(_, d) => { if (d) setTempTime(d); }} style={{ flex: 1, alignSelf: "stretch" }} />
               </View>
             </View>
           </View>
@@ -412,20 +407,15 @@ export default function EditServices({ navigation, route }) {
                 <Text style={styles.modalTitle}>Choose a tag</Text>
                 <TouchableOpacity onPress={() => setTagPickerVisible(false)}><Icon name="close" size={width * 0.055} /></TouchableOpacity>
               </View>
-              <FlatList
-                data={["Haircuts","Nails","Makeup","Tutoring","Cooking","Cleaning","Beauty"]}
-                keyExtractor={(item) => item}
-                ItemSeparatorComponent={() => <View style={styles.sep} />}
-                renderItem={({ item }) => {
-                  const selected = item === tag;
-                  return (
-                    <TouchableOpacity style={styles.optionRow} onPress={() => { setTag(item); setTagPickerVisible(false); }}>
-                      <View style={[styles.radioOuter, selected && styles.radioOuterActive]}>{selected && <View style={styles.radioInner} />}</View>
-                      <Text style={styles.optionText}>{item}</Text>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
+              <FlatList data={["Haircuts","Nails","Makeup","Tutoring","Cooking","Cleaning","Beauty"]} keyExtractor={(item) => item} ItemSeparatorComponent={() => <View style={styles.sep} />} renderItem={({ item }) => {
+                const selected = item === tag;
+                return (
+                  <TouchableOpacity style={styles.optionRow} onPress={() => { setTag(item); setTagPickerVisible(false); }}>
+                    <View style={[styles.radioOuter, selected && styles.radioOuterActive]}>{selected && <View style={styles.radioInner} />}</View>
+                    <Text style={styles.optionText}>{item}</Text>
+                  </TouchableOpacity>
+                );
+              }} />
             </View>
           </View>
         </Modal>
