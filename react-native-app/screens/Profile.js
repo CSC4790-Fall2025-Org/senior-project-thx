@@ -27,8 +27,8 @@ import ImageGalleryPicker from '../components/ImageGalleryPicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
-const HEADER_HEIGHT = height * 0.10;
-const AVATAR_SIZE = 96;
+const HEADER_HEIGHT = height * 0.13;
+const AVATAR_SIZE = 96; // adjust avatar size here
 
 const buildAbsolute = (url) => {
   if (!url) return null;
@@ -375,12 +375,36 @@ export default function Profile() {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={AppStyles.container}>
-        <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} pointerEvents="none" style={[AppStyles.headerBg, { zIndex: 20, elevation: 20 }]} />
+        <LinearGradient
+          colors={[colors.gradientStart, colors.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          pointerEvents="none"
+          style={[AppStyles.headerBg, { zIndex: 20, elevation: 20 }]}
+        >
+          <Image source ={require('../assets/logo.png')} style={{ width: 100, height: 60, resizeMode: 'contain' }} />
+        </LinearGradient>
 
         <ScrollView style={{ flex: 1, width: '100%' }} contentContainerStyle={{ paddingTop: HEADER_HEIGHT + 16, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
           <View style={[AppStyles.profileRow, { marginTop: 0 }]}>
             <View style={AppStyles.avatarWrapper}>
-              <View style={[AppStyles.avatarCircle, { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2, overflow: 'hidden', padding: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }]}>
+              {/* Avatar (image fills the circle; emoji fallback centered and not clipped) */}
+              <View
+                style={[
+                  AppStyles.avatarCircle,
+                  {
+                    width: AVATAR_SIZE,
+                    height: AVATAR_SIZE,
+                    borderRadius: AVATAR_SIZE / 2,
+                    overflow: 'hidden',
+                    padding: 0,
+                    left: '18%',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'transparent',
+                  },
+                ]}
+              >
                 {currentAvatarUri() ? (
                   <Image source={{ uri: currentAvatarUri() }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
                 ) : (
@@ -393,7 +417,21 @@ export default function Profile() {
               </TouchableOpacity>
             </View>
 
-            <TextInput style={AppStyles.nameText} value={name || ''} onChangeText={setName} editable={true} placeholder="Your Name" placeholderTextColor={colors.textPrimary} onSubmitEditing={() => { Keyboard.dismiss(); if (isDirty()) handleSave(); }} />
+            <TextInput
+              style={[AppStyles.nameText]}
+              value={name || ''}
+              onChangeText={setName}
+              editable={true}
+              placeholder="Your Name"
+              placeholderTextColor={colors.textPrimary}
+              numberOfLines={1}
+              maxLength={10}
+              // Save when pressing Return if there are changes
+              onSubmitEditing={() => {
+                Keyboard.dismiss();
+                if (isDirty()) handleSave();
+              }}
+            />
           </View>
 
           <View style={AppStyles.inputSection}>

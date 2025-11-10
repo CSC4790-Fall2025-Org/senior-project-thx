@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   // SERVICE CARD CONTENT 
   serviceCard: { 
     height: 150, 
-    width: 350, 
+    width: '100%', 
     borderRadius: 15, 
     backgroundColor: "#fff", 
     alignSelf: "center", 
