@@ -11,21 +11,6 @@ from .models import Service, Availability, Booking, ServiceImage
 
 User = get_user_model()
 
-# def get_active_demo_user(request=None):
-#     # Header or query param controls which demo we use
-#     sel = None
-#     if request is not None:
-#         sel = request.headers.get("X-Demo-User") or request.query_params.get("demo")
-
-#     if str(sel) in ("2", "demo2"):
-#         email = "rphan01@villanova.edu"
-#         defaults = {"name": "Rachel", "location": "Corr Hall"}
-#     else:
-#         email = "mdang01@villanova.edu"
-#         defaults = {"name": "Mya", "location": "Friar Hall"}
-
-#     user, _ = User.objects.get_or_create(email=email, defaults=defaults)
-#     return user
 
 def _parse_hhmmss(s):
     parts = (s or "").split(":")
@@ -95,6 +80,30 @@ class BaseServiceSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "description", "price", "type"]
 
 
+# Service Image Serializer
+class ServiceImageSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ServiceImage
+        fields = ("id", "url", "created_at")
+
+    def get_url(self, obj):
+        if not obj or not obj.image:
+            return None
+        request = self.context.get("request")
+        try:
+            url = obj.image.url
+        except Exception:
+            return None
+        if request:
+            try:
+                return request.build_absolute_uri(url)
+            except Exception:
+                return url
+        return url
+
+
 # Full Service Serializer — includes everything (used in UserMeSerializer, detailed views)
 class FullServiceSerializer(BaseServiceSerializer):
     availabilities = serializers.SerializerMethodField()
@@ -102,7 +111,7 @@ class FullServiceSerializer(BaseServiceSerializer):
     location = serializers.CharField(source='user.location', read_only=True)
     user_id = serializers.IntegerField(source='user.id', read_only=True)
     image = serializers.ImageField(required=False)
-    isSaved = serializers.SerializerMethodField() 
+    isSaved = serializers.SerializerMethodField()
     provider_name = serializers.CharField(source='user.name', read_only=True)
 
     # New field: include owner's email directly on the service representation
@@ -146,7 +155,7 @@ class FullServiceSerializer(BaseServiceSerializer):
 
     def get_images(self, obj):
         return ServiceImageSerializer(obj.images.all(), many=True, context=self.context).data
-    
+
     def get_isSaved(self, obj):
         request = self.context.get("request")
         user = getattr(request, "user", None)
@@ -178,11 +187,17 @@ class FullServiceSerializer(BaseServiceSerializer):
         if slots:
             Availability.objects.bulk_create(Availability(service=service, **s) for s in slots)
 
+        # Handle uploaded images (if request.FILES contains 'images')
+        files = request.FILES.getlist("images") if request and hasattr(request.FILES, "getlist") else []
+        for f in files:
+            ServiceImage.objects.create(service=service, image=f)
+
         return service
 
     def update(self, instance, validated_data):
         """
         Update fields. If availability payload is present, replace rows.
+        We respect partial updates (fields omitted won't be overwritten).
         """
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -255,11 +270,16 @@ class BookingSerializer(serializers.ModelSerializer):
         if not first_image or not first_image.image:
             return None
 
-        image_url = first_image.image.url  # Correct reference to ImageField
+        try:
+            image_url = first_image.image.url
+        except Exception:
+            return None
 
         if request:
-            return request.build_absolute_uri(image_url)
-
+            try:
+                return request.build_absolute_uri(image_url)
+            except Exception:
+                return image_url
         return image_url
 
     def validate(self, attrs):
@@ -290,22 +310,37 @@ class UserMeSerializer(serializers.ModelSerializer):
     bookings = BookingSerializer(source="customer_bookings", many=True, read_only=True)
     saved_services = FullServiceSerializer(many=True, read_only=True)
 
+    # make profile_picture writable so uploaded files are accepted on PATCH
+    profile_picture = serializers.ImageField(required=False, allow_null=True)
+
     class Meta:
         model = User
         fields = ["id", "name", "email", "location", "profile_picture", "services", "bookings", "saved_services"]
         read_only_fields = ["email"]
 
+    def to_representation(self, instance):
+        """
+        Return canonical representation for the user and ensure profile_picture is an absolute URL.
+        """
+        request = self.context.get("request")
+        rep = super().to_representation(instance)
 
-# Service Image Serializer
-class ServiceImageSerializer(serializers.ModelSerializer):
-    url = serializers.SerializerMethodField()
+        pic = None
+        try:
+            if getattr(instance, "profile_picture", None):
+                pic = instance.profile_picture.url
+        except Exception:
+            pic = rep.get("profile_picture")
 
-    class Meta:
-        model = ServiceImage
-        fields = ("id", "url", "created_at")
+        if pic and request:
+            try:
+                rep["profile_picture"] = request.build_absolute_uri(pic)
+            except Exception:
+                rep["profile_picture"] = pic
+        else:
+            rep["profile_picture"] = None
 
-    def get_url(self, obj):
-        return obj.image.url if obj.image else None
+        return rep
 
 
 # alias for convenience
