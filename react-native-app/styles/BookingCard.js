@@ -1,8 +1,10 @@
-import React from 'react';
+import React, {useState} from 'react';
 import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, Alert } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { colors } from './AppStyles';
 import { useNavigation } from '@react-navigation/native';
+import Modal from 'react-native-modal';
+import { api } from '../src/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -10,20 +12,38 @@ export default function BookingCard({
   image,
   service,
   stylist,
+  clientEmail,
+  clientName,
+  location,
+  bookingId,
   date,
   time,
   status,
   onDelete,
   onMessage,
   booking,
-  showDeleteIcon // pass this prop from MyBookings.js to show delete icon instead of menu
+  showDeleteIcon 
 }) {
   const navigation = useNavigation();
-
-  // Only do the confirmation prompt ONCE, delegate the deletion and confirmation message to parent
-  const handleDelete = () => {
-    if (onDelete) onDelete();
+  const [modalVisible, setModalVisible] = useState(false);
+  
+  const handleDelete = async () => {
+    if (!bookingId) {
+      Alert.alert("Error", "Booking ID is missing");
+      return;
+    }
+  
+    try {
+      await api(`/bookings/${bookingId}/`, { method: 'DELETE' });
+      Alert.alert("Success", "Booking deleted successfully");
+      if (onDelete) onDelete(); // tell parent to refresh
+    } catch (err) {
+      console.log("DELETE ERROR:", err.message);
+      Alert.alert("Error", err.message);
+    }
   };
+  
+  
 
   return (
     <View style={styles.card}>
@@ -57,7 +77,7 @@ export default function BookingCard({
         {showDeleteIcon ? (
           <TouchableOpacity
             style={styles.menuIcon}
-            onPress={handleDelete}
+            onPress={() => onDelete && onDelete()} 
             accessibilityLabel="Delete Booking"
           >
             <Feather name="trash-2" size={width * 0.05} color={colors.gradientEnd} />
@@ -65,13 +85,52 @@ export default function BookingCard({
         ) : (
           <TouchableOpacity
             style={styles.menuIcon}
-            onPress={() => navigation.navigate('BookingInfo', { booking })}
+            onPress={() => setModalVisible(true)} 
             accessibilityLabel="More Options"
           >
             <Ionicons name="ellipsis-vertical" size={width * 0.04} color={colors.heading} />
           </TouchableOpacity>
         )}
       </View>
+      <Modal
+  isVisible={modalVisible}
+  animationIn="slideInUp"
+  animationOut="slideOutDown"
+  onBackdropPress={() => setModalVisible(false)}
+  onBackButtonPress={() => setModalVisible(false)}
+  useNativeDriver
+  backdropTransitionOutTiming={0}
+  style={styles.centerModal}
+>
+  <View style={styles.popup}>
+    <Text style={styles.popupTitle}>Client Info</Text>
+
+    <View style={styles.infoContainer}>
+      <Text style={styles.popupTextLeft}>Booked By: {clientName || 'N/A'}</Text>
+      <Text style={styles.popupTextLeft}>Email: {clientEmail || 'N/A'}</Text>
+      <Text style={styles.popupTextLeft}>Suggested Location: {location || 'N/A'}</Text>
+    </View>
+
+    <TouchableOpacity
+      style={styles.deleteButton}
+      onPress={() => {
+        if (onDelete) onDelete();
+        setModalVisible(false);
+      }}
+      
+    >
+      <Text style={styles.deleteText}>Delete Booking</Text>
+    </TouchableOpacity>
+
+    <TouchableOpacity
+      style={[styles.closeButton, { marginTop: 10 }]}
+      onPress={() => setModalVisible(false)}
+    >
+      <Text style={styles.closeText}>Close</Text>
+    </TouchableOpacity>
+  </View>
+</Modal>
+
     </View>
   );
 }
@@ -155,7 +214,63 @@ const styles = StyleSheet.create({
     minWidth: 40,
   },
   menuIcon: {
-    padding: 8,
+    padding: 3,
     zIndex: 1001,
   },
+  centerModal: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 0,
+  },
+  popup: {
+    width: '85%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingVertical: 25,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+  },
+  popupTitle: { fontSize: 20, fontWeight: 'bold', color: colors.heading, marginBottom: 10 },
+  popupText: { fontSize: 16, color: colors.textPrimary, textAlign: 'center', marginBottom: 4 },
+  locationText: { fontSize: 15, color: '#555', textAlign: 'center' },
+  closeButton: {
+    marginTop: 15,
+    backgroundColor: '#000000',
+    paddingHorizontal: 25,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  closeText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
+
+  deleteButton: {
+    marginTop: 15,
+    backgroundColor: colors.gradientEnd, 
+    paddingHorizontal: 25,
+    paddingVertical: 10,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  infoContainer: {
+    width: '100%',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 70, 
+    marginVertical: 10,
+  },
+  popupTextLeft: {
+    fontSize: 16,
+    color: colors.textPrimary,
+    textAlign: 'left',
+    width: '100%',
+  },
+  
+  
 });
