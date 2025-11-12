@@ -1,13 +1,13 @@
 from rest_framework.views import APIView
-from rest_framework import viewsets, status, mixins
+from rest_framework import viewsets, status, mixins, parsers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.exceptions import ParseError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
+from django.db.models import Q
 import logging
 import json
 from datetime import datetime, date, time
@@ -42,17 +42,16 @@ def resolve_request_user(request):
             return User.objects.get(id=header_user_id)
         except User.DoesNotExist:
             pass
-
-    return get_active_demo_user(request)
+    return None
 
 
 class ProfileMeView(APIView):
     """
-    GET   /api/profile/me/   -> demo profile + demo services
-    PATCH /api/profile/me/   -> update demo profile fields (accepts multipart for file uploads and JSON)
+    GET   /api/profile/me/   -> profile for current user (or demo)
+    PATCH /api/profile/me/   -> update profile fields (accepts multipart for file uploads and JSON)
     """
-    # Allow multipart/form-data uploads (files) AND JSON requests
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    # Accept multipart/form-data, form, and JSON
+    parser_classes = (parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser)
 
     def get(self, request):
         # Resolve the effective user (supports demo/header fallback when unauthenticated)
@@ -61,31 +60,52 @@ class ProfileMeView(APIView):
         return Response(ser.data)
 
     def patch(self, request):
-        # DEBUG: log incoming raw data to help troubleshoot why 'name' isn't persisting
+        # DEBUG: log incoming raw data to help troubleshoot
+        logger.debug("[ProfileMeView.patch] REQUEST.CONTENT_TYPE=%s", request.content_type)
         try:
-            logger.debug("[ProfileMeView.patch] REQUEST.DATA: %s", request.data)
+            logger.debug("[ProfileMeView.patch] REQUEST.DATA keys: %s", list(request.data.keys()))
         except Exception:
-            # keep logging safe
             logger.debug("[ProfileMeView.patch] REQUEST.DATA unreadable")
 
         # Resolve the effective user so we don't pass AnonymousUser to the serializer
         user = resolve_request_user(request)
+        if user is None:
+            return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
 
-        ser = UserMeSerializer(user, data=request.data, partial=True, context={"request": request})
+        data = request.data.copy()
+
+        # Special-case: clearing the profile picture. Client sends profile_picture='' in multipart
+        # to indicate "clear". When that happens, remove the file and omit profile_picture from data so serializer doesn't try to set invalid value.
+        if "profile_picture" in data and not request.FILES.get("profile_picture") and str(data.get("profile_picture", "")).strip() == "":
+            try:
+                # remove file from storage and clear the field
+                user.profile_picture.delete(save=False)
+            except Exception:
+                pass
+            user.profile_picture = None
+            user.save()
+            # remove key so serializer doesn't confuse empty-string with actual upload
+            data.pop("profile_picture", None)
+
+        # Prevent accidental overwrite with blank strings for text fields:
+        # If the client submits name/location/email as an empty string but didn't intend to clear them,
+        # we remove those keys so they remain unchanged.
+        for k in ("name", "location", "email"):
+            if k in data and (data.get(k) is None or str(data.get(k)).strip() == ""):
+                data.pop(k, None)
+
+        ser = UserMeSerializer(user, data=data, partial=True, context={"request": request})
         if not ser.is_valid():
-            # Log validation errors and the raw incoming data
             logger.warning("[ProfileMeView.patch] serializer invalid. errors=%s request.data=%s", ser.errors, request.data)
             return Response({"detail": "Invalid data", "errors": ser.errors}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Log validated data before saving
-        logger.debug("[ProfileMeView.patch] validated_data: %s", ser.validated_data)
-
+        # Save validated fields
         ser.save()
 
-        # After save, re-serialize and log the resulting data returned to client
+        # After save, re-serialize and return full canonical object (guarantees profile_picture and other fields present)
+        user.refresh_from_db()
         out = UserMeSerializer(user, context={"request": request}).data
         logger.debug("[ProfileMeView.patch] saved. returning: %s", out)
-
         return Response(out, status=status.HTTP_200_OK)
 
 
@@ -99,7 +119,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
     """
     serializer_class = ServiceSerializer
     lookup_field = "id"
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    parser_classes = (parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser)
     permission_classes = (IsAuthenticatedOrReadOnly,)
 
     def get_queryset(self):
@@ -143,7 +163,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         service = serializer.save()  # user handled in serializer.create
 
-        files = request.FILES.getlist("images")
+        files = request.FILES.getlist("images") if hasattr(request.FILES, "getlist") else []
         if files:
             self.perform_image_save(service, files)
 
@@ -154,7 +174,8 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         """
         Handle PATCH /api/services/{id}/
-        Auth required. If availability payload present, it replaces rows (handled in serializer.update).
+        Auth required. Support removing existing images via 'remove_image_ids' (JSON list or comma-separated string)
+        and appending new uploaded files under 'images'.
         """
         if not request.user or not request.user.is_authenticated:
             return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
@@ -163,21 +184,73 @@ class ServiceViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         data = request.data.copy()
 
+        # Parse remove_image_ids if present (could be JSON string or comma-separated)
+        remove_ids_raw = data.get("remove_image_ids") or data.get("deleted_image_ids") or None
+        remove_ids = []
+        if remove_ids_raw:
+            try:
+                # try JSON first
+                if isinstance(remove_ids_raw, str):
+                    remove_ids = json.loads(remove_ids_raw)
+                else:
+                    remove_ids = list(remove_ids_raw)
+            except Exception:
+                # fallback: comma-separated integers
+                try:
+                    remove_ids = [int(x.strip()) for x in str(remove_ids_raw).split(",") if x.strip().isdigit()]
+                except Exception:
+                    remove_ids = []
+
+        if remove_ids:
+            logger.debug("[ServiceViewSet.partial_update] removing images: %s", remove_ids)
+            ServiceImage.objects.filter(id__in=remove_ids, service=instance).delete()
+
+        # Use serializer to update other fields (availability handling is in serializer.update)
         serializer = self.get_serializer(instance, data=data, partial=partial, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        files = request.FILES.getlist("images")
+        # Save any newly uploaded images
+        files = request.FILES.getlist("images") if hasattr(request.FILES, "getlist") else []
         if files:
             self.perform_image_save(instance, files)
 
+        # Refresh and return canonical representation
+        instance.refresh_from_db()
         out = ServiceSerializer(instance, context={"request": request}).data
-        return Response(out)
+        return Response(out, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="toggle-save")
+    def toggle_save(self, request, id=None):
+        """
+        POST /api/services/{id}/toggle-save/
+        Toggles whether the logged-in user has saved this service.
+        Returns JSON: {"saved": true/false}
+        """
+        service = self.get_object()
+        user = resolve_request_user(request)  # your helper for getting demo/auth user
+
+        if service in user.saved_services.all():
+            user.saved_services.remove(service)
+            saved = False
+        else:
+            user.saved_services.add(service)
+            saved = True
+
+        return Response({"saved": saved}, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=["get"], url_path="saved")
+    def list_saved(self, request):
+        user = resolve_request_user(request)
+        qs = user.saved_services.all()
+        serializer = self.get_serializer(qs, many=True, context={"request": request})
+        return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         if not request.user or not request.user.is_authenticated:
             return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
         return super().destroy(request, *args, **kwargs)
+
 
 class ServiceImageViewSet(mixins.DestroyModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     """
@@ -189,12 +262,11 @@ class ServiceImageViewSet(mixins.DestroyModelMixin, mixins.RetrieveModelMixin, v
     # Add permission checks here if required (ownership, authentication)
 
     def perform_destroy(self, instance):
-        # delete file from storage first
+        # delete file from storage first (ServiceImage.delete handles it)
         try:
-            instance.image.delete(save=False)
+            instance.delete()
         except Exception:
             pass
-        instance.delete()
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -216,15 +288,28 @@ class BookingViewSet(viewsets.ModelViewSet):
                 or self.request.headers.get("X-Bookings-Role")
                 or "client").lower()
 
-        if role not in {"client", "provider"}:
-            raise ParseError(detail="Invalid role. Use 'client' or 'provider'.")
+        # if role not in {"client", "provider"}:
+        #     raise ParseError(detail="Invalid role. Use 'client' or 'provider'.")
 
         qs = self.queryset
         if role == "provider":
-            # Bookings made on services that this user provides
             return qs.filter(service__user=user)
-        # role == "client" (default): bookings this user made
-        return qs.filter(user=user)
+        elif role == "client":
+            return qs.filter(user=user)
+        else:
+            return qs.filter(Q(user=user) | Q(service__user=user))
+        # if role == "provider":
+        #     return qs.filter(service__user=user)
+        # elif role == "client":
+        #     return qs.filter(user=user)
+        # else:
+        # # Allow both roles if unspecified (for DELETE calls that don't send ?role=)
+        #     return qs.filter(Q(user=user) | Q(service__user=user))
+        # if role == "provider":
+        #     # Bookings made on services that this user provides
+        #     return qs.filter(service__user=user)
+        # # role == "client" (default): bookings this user made
+        # return qs.filter(user=user)
 
     def create(self, request, *args, **kwargs):
         user = resolve_request_user(request)
@@ -238,9 +323,24 @@ class BookingViewSet(viewsets.ModelViewSet):
         out = self.get_serializer(booking)
         return Response(out.data, status=status.HTTP_201_CREATED)
 
+    # def destroy(self, request, *args, **kwargs):
+    #     # NOTE: Deletion remains scoped to client-owned bookings.
+    #     # Providers won't be able to delete client bookings through this action.
+    #     instance = self.get_object()
+    #     instance.delete()
+    #     return Response(status=status.HTTP_204_NO_CONTENT)
     def destroy(self, request, *args, **kwargs):
-        # NOTE: Deletion remains scoped to client-owned bookings.
-        # Providers won't be able to delete client bookings through this action.
-        instance = self.get_object()
+        user = resolve_request_user(request)
+
+        instance = get_object_or_404(
+            Booking.objects.filter(Q(user=user) | Q(service__user=user)),
+            pk=kwargs["pk"]
+        )
+
+        time_obj = getattr(instance, "time", None)
+        if time_obj and hasattr(time_obj, "is_booked"):
+            time_obj.is_booked = False
+            time_obj.save(update_fields=["is_booked"])
+
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

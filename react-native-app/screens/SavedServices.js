@@ -1,80 +1,89 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from "@react-navigation/native";
 import { StyleSheet, Text, View, Dimensions, TouchableOpacity, TextInput, Image, FlatList, ActivityIndicator } from 'react-native'; 
 import { LinearGradient } from 'expo-linear-gradient'; 
 import EvilIcons from 'react-native-vector-icons/EvilIcons'; 
 import Ionicons from 'react-native-vector-icons/Ionicons'; 
 import Feather from 'react-native-vector-icons/Feather'; 
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import ServiceList from '../components/ServiceList'; 
-import { dummyData } from '../data/Dummy'; 
 import { api } from '../src/api';
 import { API_BASE } from '../src/config';
 
 const { height } = Dimensions.get('window'); 
 
-const services = [ 
-    { id: 1, name: 'Haircut', iconLib: 'Feather', iconName: 'scissors' }, 
-    { id: 2, name: 'Nails', iconLib: 'FontAwesome5', iconName: 'paint-brush' }, 
-    { id: 3, name: 'Cooking', iconLib: 'MaterialCommunityIcons', iconName: 'chef-hat' },
-    { id: 4, name: 'Tutoring', iconLib: 'MaterialCommunityIcons', iconName: 'school' }, 
-    { id: 5, name: 'Makeup', iconLib: 'FontAwesome5', iconName: 'palette' }, 
-]; 
-
 const buildAbsolute = (url) => {
   if (!url) return null;
-  if (url.startsWith('http')) return url;
-  const host = API_BASE.replace(/\/api\/?$/, '');
+  if (url.startsWith("http")) return url;
+  const host = API_BASE.replace(/\/api\/?$/, "");
   return `${host}${url}`;
 };
 
 const SavedServices = ({navigation}) => { 
-    const flattenedServices = dummyData.flatMap(provider => 
-    provider.services.map(service => ({ 
-      ...service, 
-      providerName: provider.name, 
-      location: provider.location, 
-      id: `${provider.id}-${service.service}`,  
-    })) 
-    ); 
-
+    const [profileLoading, setProfileLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState(null);
+    const [services, setServices] = useState([]);
     const [profileImageUri, setProfileImageUri] = useState(null);
-    const [loadingProfile, setLoadingProfile] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     const fetchProfile = useCallback(async () => {
-      setLoadingProfile(true);
+      setProfileLoading(true);
       try {
         const profile = await api('/profile/me/');
+        setCurrentUserId(profile.id);
         const raw = profile.profile_picture || profile.avatar || profile.image || profile.profile_image || profile.photo || null;
         const rawUrl = typeof raw === 'string' ? raw : (raw && (raw.url || raw.uri));
         setProfileImageUri(buildAbsolute(rawUrl || '') || null);
       } catch (e) {
-        // ignore
+        console.warn('Failed to load user profile for filtering', e);
       } finally {
-        setLoadingProfile(false);
+        setProfileLoading(false);
       }
     }, []);
 
     useEffect(() => {
-      fetchProfile();
+        fetchProfile();
     }, [fetchProfile]);
 
-    const renderIcon = (item, size = 30, color = '#333') => {
-      const { iconLib, iconName } = item;
-      const props = { name: iconName, size, color };
-      switch (iconLib) {
-        case 'Feather':
-          return <Feather {...props} />;
-        case 'FontAwesome5':
-          return <FontAwesome5 {...props} solid={false} />;
-        case 'MaterialCommunityIcons':
-          return <MaterialCommunityIcons {...props} />;
-        case 'Ionicons':
-          return <Ionicons {...props} />;
-        default:
-          return <Feather name="circle" size={size} color={color} />;
-      }
-    };
+    const fetchSavedServices = useCallback(async () => {
+    try {
+        setLoading(true);
+        setError('');
+
+        const data = await api(`/profile/me/`);
+
+        const normalized = (Array.isArray(data.saved_services) ? data.saved_services : []).map((svc) => {
+            let imageUrl = null;
+            if (Array.isArray(svc.images) && svc.images.length > 0) {
+                const firstImage = svc.images[0];
+                imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.url;
+            }
+            return {
+                id: svc.id,
+                service: svc.name,
+                provider: svc.provider_name || 'Unknown',
+                price: svc.price,
+                imageUri: imageUrl ? { uri: buildAbsolute(imageUrl) } : null,
+                };
+        });
+
+        setServices(normalized);
+    } catch (e) {
+        console.error('Failed to fetch saved services:', e);
+        setError(e.message?.toString() || 'Failed to load saved services');
+    } finally {
+        setLoading(false);
+    }
+    }, []);
+
+
+    useFocusEffect(
+      useCallback(() => {
+          if (!profileLoading && currentUserId) {
+          fetchSavedServices();
+          }
+      }, [profileLoading, currentUserId, fetchSavedServices])
+    );
 
     return ( 
         <View style={styles.container}> 
@@ -85,7 +94,7 @@ const SavedServices = ({navigation}) => {
                 start={{ x: 0, y: 1 }} 
                 end={{ x: 1, y: 0 }} 
             > 
-                <Text style= {styles.helloText}>Hello MyAllRaAby!</Text> 
+                 <Image source ={require('../assets/logo.png')} style={styles.logo} /> 
 
                 {/* Avatar with pink outer background and white inner circle (image or emoji) */}
                 <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}>
@@ -98,13 +107,6 @@ const SavedServices = ({navigation}) => {
                       )}
                     </View>
                   </View>
-                </TouchableOpacity> 
-                
-                {/* FILTERS */} 
-                <TouchableOpacity style ={styles.filterFrame}> 
-                    <View style={styles.filterIcon}> 
-                        <Ionicons name="filter-outline" size={25}/> 
-                    </View> 
                 </TouchableOpacity> 
                 
                 {/* SEARCH BOX */} 
@@ -120,38 +122,17 @@ const SavedServices = ({navigation}) => {
                 </View> 
             </LinearGradient> 
 
-            {/* SCROLL TOP CATEGORY */} 
-            <View style={styles.categoryContent}> 
-                <Text style={styles.topServiceText}>TOP SERVICES</Text> 
-                <FlatList 
-                    data={services} 
-                    keyExtractor={(item) => String(item.id)} 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false} 
-                    contentContainerStyle={styles.carouselContainer} 
-                    renderItem={({ item }) => ( 
-                    <View style={styles.serviceItem}> 
-                        <TouchableOpacity 
-                            style={styles.serviceCircle} 
-                            onPress={() => console.log('Pressed:', item.name)} 
-                        > 
-                          <View style={styles.iconWrapper}>
-                            {renderIcon(item, 37, '#333')}
-                          </View>
-                        </TouchableOpacity> 
-                        <Text style={styles.serviceTypeText}>{item.name}</Text> 
-                    </View> 
-                )} 
-                /> 
-            </View> 
-
             {/* SCROLL SERVICES */} 
             <View style={styles.serviceContainer}> 
                 <Text style={styles.servicesText}>
-                  Saved Services ({flattenedServices.length})
+                  Saved Services ({services.length})
                 </Text> 
                 <View style= {styles.scrollArea}> 
-                    <ServiceList services={flattenedServices} /> 
+                    {services.length > 0 ? (
+                        <ServiceList services={services} navigation={navigation} />
+                    ) : (
+                        <Text style={styles.emptyText}>You haven't saved any services yet.</Text>
+                    )} 
                 </View> 
             </View> 
 
@@ -190,18 +171,20 @@ const styles = StyleSheet.create({
         left: 0, 
         zIndex: 1, 
     }, 
-    helloText: { 
-        position: 'absolute', 
-        left: '4.6%', 
-        top: '42.8%', 
-        fontSize: 20, 
-        fontWeight: 'bold', 
-        fontFamily: 'Poppins', 
-    }, 
+    logo: { position: 'absolute', left: '-5%', top: '30%', height: 60, width: 150, resizeMode: 'contain' },
+
+    // helloText: { 
+    //     position: 'absolute', 
+    //     left: '4.6%', 
+    //     top: '42.8%', 
+    //     fontSize: 20, 
+    //     fontWeight: 'bold', 
+    //     fontFamily: 'Poppins', 
+    // }, 
     profileFrame: { 
         position: 'absolute', 
         right:'4.6%', 
-        top: '35%', 
+        top: '30.9%', 
         height: 56, 
         width: 56, 
         borderRadius: 56, 
@@ -230,10 +213,10 @@ const styles = StyleSheet.create({
     }, 
     textInputBox: { 
         position: 'absolute', 
-        left:'4.6%', 
+        left:'4.1%', 
         top: '63.6%', 
         height: 47, 
-        width: 301, 
+        width: '91.7%', 
         borderRadius: 10, 
         backgroundColor: '#FFFFFF', 
     }, 

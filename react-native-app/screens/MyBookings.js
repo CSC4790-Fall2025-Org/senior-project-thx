@@ -27,6 +27,7 @@ export default function MyBookings({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [profileImageUri, setProfileImageUri] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const formatTimeRange = (start, end) => {
     if (!start || !end) return 'Unknown time';
@@ -47,6 +48,9 @@ export default function MyBookings({ navigation }) {
       date: item.time_detail?.date || '',
       time: formatTimeRange(item.time_detail?.start_time, item.time_detail?.end_time),
       image: { uri: item.image },
+      name: item.customer_name || 'N/A',
+      email: item.customer_email || 'N/A',
+      location: item.location || 'No location specified',
     };
     if (role === TABS.CLIENT) {
       // show client name (customer) when you're the provider
@@ -109,6 +113,7 @@ export default function MyBookings({ navigation }) {
   const total = data.length;
 
   const handleDeleteBooking = (id) => {
+    if (deletingId === id) return;
     Alert.alert(
       'Delete Booking',
       'Are you sure you want to delete this booking?',
@@ -118,20 +123,33 @@ export default function MyBookings({ navigation }) {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
+            setDeletingId(id);
             try {
               await api(`/bookings/${id}/`, { method: 'DELETE' });
-              // Only client-made bookings are deletable (scoped server-side);
-              // Update client-side list optimistically:
-              setMyBookings((prev) => prev.filter((b) => b.id !== id));
+  
+              // After deletion, reload bookings to refresh UI
+              if (activeTab === TABS.MY) {
+                const updatedMine = await fetchMine();
+                setMyBookings(updatedMine);
+              } else if (activeTab === TABS.CLIENT) {
+                const updatedClient = await fetchClient();
+                setClientBookings(updatedClient);
+              }
+  
               Alert.alert('Deleted', `Booking ID ${id} was successfully deleted.`, [{ text: 'OK' }]);
             } catch (error) {
               Alert.alert('Error', error.message || 'Failed to delete booking');
+            } finally {
+              setDeletingId(null);
             }
           },
         },
       ]
     );
   };
+  
+  
+  
 
   if (loading) {
     return (
@@ -161,13 +179,15 @@ export default function MyBookings({ navigation }) {
         style={styles.headerBg}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
+
       >
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <Image source ={require('../assets/logo.png')} style={{ width: 100, height: 60, resizeMode: 'contain' }} />
+        {/* <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={width * 0.03} color={colors.heading} />
           <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.avatarWrapper}
           onPress={() => navigation.navigate('Profile')}
           activeOpacity={0.8}
@@ -181,7 +201,7 @@ export default function MyBookings({ navigation }) {
               )}
             </View>
           </View>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </LinearGradient>
 
       {/* Main content */}
@@ -222,6 +242,10 @@ export default function MyBookings({ navigation }) {
               stylist={item.stylist}
               date={item.date}
               time={item.time}
+              location={item.location}
+              clientName={item.name}
+              clientEmail={item.email}
+              bookingId={item.id}
               onDelete={() => handleDeleteBooking(item.id)}
               onMessage={() => alert(`Message for booking id ${item.id}`)}
               // only allow delete on "My Bookings"
@@ -273,8 +297,8 @@ const styles = StyleSheet.create({
     height: height * 0.13,
     paddingTop: height * 0.06,
     paddingHorizontal: width * 0.05,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    alignContents: 'center',
     alignItems: 'center',
     position: 'relative',
   },

@@ -2,33 +2,10 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.db.models import F, Q
 from django.conf import settings
+import os
 
 # Create your models here.
 
-class User(AbstractUser):
-    name = models.CharField(max_length=100, blank = True)
-    email = models.EmailField(unique=True)
-    profile_picture = models.ImageField(upload_to="profile_pics/", blank=True, null=True)
-    location = models.CharField(max_length=200, blank=True)
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']
-    groups = models.ManyToManyField(
-        Group,
-        related_name="custom_user_set", 
-        blank=True,
-        help_text="The groups this user belongs to.",
-        verbose_name="groups",
-    )
-    # user_permissions = models.ManyToManyField(
-    #     Permission,
-    #     related_name="custom_user_permissions_set",  
-    #     blank=True,
-    #     help_text="Specific permissions for this user.",
-    #     verbose_name="user permissions",
-    # )
-    def __str__(self):
-        return self.email
-    
 class Service(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="services")
     name = models.CharField(max_length=20)
@@ -45,8 +22,29 @@ class Service(models.Model):
         ]
         ordering = ["-id"]
 
-    def __str__(self): 
+    def __str__(self):
         return self.name
+
+
+class User(AbstractUser):
+    name = models.CharField(max_length=100, blank = True)
+    email = models.EmailField(unique=True)
+    profile_picture = models.ImageField(upload_to="profile_pics/", blank=True, null=True)
+    location = models.CharField(max_length=200, blank=True)
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
+    groups = models.ManyToManyField(
+        Group,
+        related_name="custom_user_set",
+        blank=True,
+        help_text="The groups this user belongs to.",
+        verbose_name="groups",
+    )
+    saved_services = models.ManyToManyField(Service, related_name="saved_by", blank=True)
+
+    def __str__(self):
+        return self.email
+
 
 class Availability(models.Model):
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="availabilities")
@@ -72,8 +70,9 @@ class Availability(models.Model):
         ]
         ordering = ["date", "start_time"]
 
-    def __str__(self): 
+    def __str__(self):
         return f"{self.service.name} on {self.date}"
+
 
 class Booking(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="customer_bookings", null=True, blank=True)
@@ -93,10 +92,33 @@ class Booking(models.Model):
         except Exception:
             return f"Booking {self.pk}"
 
+
 class ServiceImage(models.Model):
     service = models.ForeignKey(Service, related_name="images", on_delete=models.CASCADE)
     image = models.ImageField(upload_to="services/")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Image for {self.service_id} ({self.id})"
+        # more robust string representation
+        return f"Image for service {self.service_id} ({self.id})"
+
+    def delete(self, *args, **kwargs):
+        """
+        Ensure file is removed from storage when deleting a ServiceImage instance.
+        """
+        try:
+            # store path, then delete model so storage backends remove the file
+            storage = self.image.storage
+            path = self.image.name
+            super().delete(*args, **kwargs)
+            if path:
+                try:
+                    storage.delete(path)
+                except Exception:
+                    pass
+        except Exception:
+            # fallback: ensure instance is deleted even when file removal fails
+            try:
+                super().delete(*args, **kwargs)
+            except Exception:
+                pass
