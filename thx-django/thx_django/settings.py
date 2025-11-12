@@ -11,34 +11,36 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import environ
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# ---------------------------------------------------------
+# ENVIRONMENT VARIABLES
+# ---------------------------------------------------------
+env = environ.Env()
+environ.Env.read_env(os.path.join(BASE_DIR, ".env"))  # Load .env file
+
+# SECURITY
+SECRET_KEY = env.str("SECRET_KEY", default="unsafe-secret-key-change-this")
+DEBUG = env.bool("DEBUG", default=False)
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])  # allow all for dev
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-*d2g4y15v1c#rf1^c+-^ao=^m=2ft1*l&=xxs+dy1hp+o*(mzd"
+# SECRET_KEY = "django-insecure-*d2g4y15v1c#rf1^c+-^ao=^m=2ft1*l&=xxs+dy1hp+o*(mzd"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DEBUG = True
 
-ALLOWED_HOSTS = ["*"] # add your ip when ipconfig getifaddr en0
+# ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
-
-# INSTALLED_APPS = [
-#     "django.contrib.admin",
-#     "django.contrib.auth",
-#     "django.contrib.contenttypes",
-#     "django.contrib.sessions",
-#     "django.contrib.messages",
-#     "django.contrib.staticfiles",
-# ]
-
 INSTALLED_APPS = [
     # Django
     "django.contrib.admin",
@@ -50,20 +52,13 @@ INSTALLED_APPS = [
     # Third-party
     "rest_framework",
     "corsheaders",
+    "rest_framework_simplejwt",
     # Local
     "core",
-    "core.authentication",
+    "core.authentication"
 ]
 
-# MIDDLEWARE = [
-#     "django.middleware.security.SecurityMiddleware",
-#     "django.contrib.sessions.middleware.SessionMiddleware",
-#     "django.middleware.common.CommonMiddleware",
-#     "django.middleware.csrf.CsrfViewMiddleware",
-#     "django.contrib.auth.middleware.AuthenticationMiddleware",
-#     "django.contrib.messages.middleware.MessageMiddleware",
-#     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-# ]
+
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",  # CORS first
     "django.middleware.security.SecurityMiddleware",
@@ -97,13 +92,26 @@ WSGI_APPLICATION = "thx_django.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# ---------------------------------------------------------
+# DATABASE (PostgreSQL via Neon)
+# ---------------------------------------------------------
+db_conf = env.db("DATABASE_URL")  # e.g. postgresql://user:pass@host/dbname
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": db_conf["NAME"],
+        "USER": db_conf["USER"],
+        "PASSWORD": db_conf["PASSWORD"],
+        "HOST": db_conf["HOST"],
+        "PORT": db_conf.get("PORT", ""),
+        "CONN_MAX_AGE": 60,
     }
 }
+
+if env.bool("DATABASE_SSL_REQUIRE", default=True):
+    DATABASES["default"]["OPTIONS"] = {"sslmode": "require"}
+
 
 AUTH_USER_MODEL = "core.User"
 
@@ -149,34 +157,14 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_ROOT = BASE_DIR / "media"
 
-# CORS_ALLOW_CREDENTIALS = True
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:19006",  # Expo web (if you try web)
-#     "http://127.0.0.1:19006",
-#     "http://localhost:8081",   # Metro
-#     "http://127.0.0.1:8081",
-#     "http://192.168.X.Y:19000",  # your machine's LAN IP + Expo port (see step 3)
-# ]
-
 CORS_ALLOW_ALL_ORIGINS = True
-
-# REST_FRAMEWORK = {
-#     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
-#     "DEFAULT_AUTHENTICATION_CLASSES": [
-#         "rest_framework_simplejwt.authentication.JWTAuthentication",
-#         "rest_framework.authentication.SessionAuthentication",  # optional for admin
-#     ],
-# }
-
-# REST_FRAMEWORK = {
-#     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
-# }
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ],  # no Session/JWT
+    # "DEFAULT_AUTHENTICATION_CLASSES": [],  # no Session/JWT
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
 }
 
 # Default primary key field type
