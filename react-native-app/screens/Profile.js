@@ -28,7 +28,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = height * 0.13;
-const AVATAR_SIZE = 96; // adjust avatar size here
+const AVATAR_SIZE = 96;
 
 const buildAbsolute = (url) => {
   if (!url) return null;
@@ -45,6 +45,33 @@ const availableLocations = [
   "St. Katharine Hall","St. Mary Hall","St. Rita Hall","Sheehan Hall","Stanford Hall","Sullivan Hall",
   "Trinity Hall","Welsh Hall",
 ];
+
+// Defensive price parsing helper
+const parsePrice = (p) => {
+  if (p === null || p === undefined) return 0;
+  if (typeof p === 'number' && !Number.isNaN(p)) return p;
+  if (typeof p === 'string') {
+    const n = Number(p);
+    if (!Number.isNaN(n)) return n;
+    // maybe it's a numeric formatted string with currency -> strip non-digit except dot and minus
+    const cleaned = p.replace(/[^\d.-]/g, '');
+    const n2 = Number(cleaned);
+    if (!Number.isNaN(n2)) return n2;
+    return 0;
+  }
+  if (typeof p === 'object' && p !== null) {
+    if (typeof p.$numberDecimal === 'string') {
+      const n = Number(p.$numberDecimal);
+      if (!Number.isNaN(n)) return n;
+    }
+    try {
+      const v = p.valueOf ? p.valueOf() : String(p);
+      const n = Number(v);
+      if (!Number.isNaN(n)) return n;
+    } catch (e) {}
+  }
+  return 0;
+};
 
 export default function Profile() {
   const [open, setOpen] = useState(false);
@@ -388,23 +415,7 @@ export default function Profile() {
         <ScrollView style={{ flex: 1, width: '100%' }} contentContainerStyle={{ paddingTop: HEADER_HEIGHT + 16, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
           <View style={[AppStyles.profileRow, { marginTop: 0 }]}>
             <View style={AppStyles.avatarWrapper}>
-              {/* Avatar (image fills the circle; emoji fallback centered and not clipped) */}
-              <View
-                style={[
-                  AppStyles.avatarCircle,
-                  {
-                    width: AVATAR_SIZE,
-                    height: AVATAR_SIZE,
-                    borderRadius: AVATAR_SIZE / 2,
-                    overflow: 'hidden',
-                    padding: 0,
-                    left: '18%',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'transparent',
-                  },
-                ]}
-              >
+              <View style={[AppStyles.avatarCircle, { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2, overflow: 'hidden', padding: 0, left: '18%', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }]}>
                 {currentAvatarUri() ? (
                   <Image source={{ uri: currentAvatarUri() }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
                 ) : (
@@ -426,7 +437,6 @@ export default function Profile() {
               placeholderTextColor={colors.textPrimary}
               numberOfLines={1}
               maxLength={10}
-              // Save when pressing Return if there are changes
               onSubmitEditing={() => {
                 Keyboard.dismiss();
                 if (isDirty()) handleSave();
@@ -449,9 +459,23 @@ export default function Profile() {
 
           {user.services && Array.isArray(user.services) && (
             <View style={AppStyles.servicesContainer}>
-              {user.services.map(service => (
-                <ServiceCard key={service.service_id} image={service.image} title={service.name} price={`$${(service.price || 0).toFixed(2)}`} category={service.tag} onEdit={() => navigation.navigate('EditServices', { service_id: service.service_id || service.id })} onDelete={() => handleDeleteService(service.service_id)} />
-              ))}
+              {user.services.map((service) => {
+                const keyId = String(service.service_id ?? service.id ?? (`svc-${service.user_id ?? 'u'}-${service.name ?? Math.random()}`));
+                const img = service.image ?? null;
+                const priceNum = parsePrice(service.price);
+                const priceStr = `$${(isNaN(priceNum) ? 0 : priceNum).toFixed(2)}`;
+                return (
+                  <ServiceCard
+                    key={keyId}
+                    image={img}
+                    title={service.name}
+                    price={priceStr}
+                    category={service.tag}
+                    onEdit={() => navigation.navigate('EditServices', { service_id: service.service_id || service.id })}
+                    onDelete={() => handleDeleteService(service.service_id || service.id)}
+                  />
+                );
+              })}
             </View>
           )}
 
