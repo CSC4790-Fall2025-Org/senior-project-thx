@@ -16,8 +16,7 @@ export default function BookingCard({
   onDelete,
   onMessage,
   booking,
-  showDeleteIcon, // pass this prop from MyBookings.js to show delete icon instead of menu
-  onMore
+  showDeleteIcon // pass this prop from MyBookings.js to show delete icon instead of menu
 }) {
   const navigation = useNavigation();
 
@@ -62,26 +61,7 @@ export default function BookingCard({
         ) : (
           <TouchableOpacity
             style={styles.menuIcon}
-            onPress={() => {
-              const b = booking || {};
-              navigation.navigate('ViewBooking', {
-                serviceId: b.serviceId ?? b.service,                 // number/id
-                serviceName: b.service ?? b.service_name,            // string
-                price: b.price,                                      // if you have it
-                existingBookingId: b.id,
-                prefill: {
-                  name: b.customerName ?? b.customer_name ?? '',
-                  email: b.customerEmail ?? b.customer_email ?? '',
-                  location: b.location ?? '',
-                },
-                preselect: {
-                  date: b.date ?? b.time_detail?.date,
-                  timeId: b.timeId ?? b.time,                        // Availability PK
-                  start_time: b.start_time ?? b.time_detail?.start_time,
-                  end_time: b.end_time ?? b.time_detail?.end_time,
-                },
-              });
-            }}
+            onPress={() => navigation.navigate('BookingInfo', { booking })}
             accessibilityLabel="More Options"
           >
             <Ionicons name="ellipsis-vertical" size={width * 0.04} color={colors.heading} />
