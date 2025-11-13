@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.db.models import F, Q
 from django.conf import settings
@@ -91,6 +93,30 @@ class Booking(models.Model):
             return f"{self.service.name} on {self.time.date}"
         except Exception:
             return f"Booking {self.pk}"
+
+@receiver(post_save, sender=Booking)
+def create_booking_notification(sender, instance, created, **kwargs):
+    if created and instance.service and instance.service.user:
+        Notification.objects.create(
+            recipient=instance.service.user,
+            message=f"{instance.customer_name or 'Someone'} booked your service '{instance.service.name}' for {instance.time.date}."
+        )
+        
+class Notification(models.Model):
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications"
+    )
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Notification for {self.recipient.email}: {self.message[:40]}"
 
 
 class ServiceImage(models.Model):

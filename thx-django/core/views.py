@@ -7,6 +7,9 @@ from rest_framework.exceptions import ParseError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from .models import Notification
 from django.db.models import Q
 import logging
 import json
@@ -344,3 +347,27 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+@login_required
+def get_notifications(request):
+    notifications = Notification.objects.filter(recipient=request.user).order_by('-created_at')
+    data = [
+        {
+            "id": n.id,
+            "message": n.message,
+            "is_read": n.is_read,
+            "created_at": n.created_at.strftime("%Y-%m-%d %H:%M"),
+        }
+        for n in notifications
+    ]
+    return JsonResponse(data, safe=False)
+
+@login_required
+def mark_notification_read(request, notif_id):
+    try:
+        notif = Notification.objects.get(id=notif_id, recipient=request.user)
+        notif.is_read = True
+        notif.save()
+        return JsonResponse({"status": "ok"})
+    except Notification.DoesNotExist:
+        return JsonResponse({"error": "Notification not found"}, status=404)
