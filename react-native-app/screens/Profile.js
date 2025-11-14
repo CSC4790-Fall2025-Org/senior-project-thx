@@ -449,9 +449,25 @@ export default function Profile() {
 
           {user.services && Array.isArray(user.services) && (
             <View style={AppStyles.servicesContainer}>
-              {user.services.map(service => (
-                <ServiceCard key={service.service_id} image={service.image} title={service.name} price={`$${(service.price || 0).toFixed(2)}`} category={service.tag} onEdit={() => navigation.navigate('EditServices', { service_id: service.service_id || service.id })} onDelete={() => handleDeleteService(service.service_id)} />
-              ))}
+              {user.services.map((service) => {
+                const numericPrice = Number(service.price ?? 0); // force number
+
+                return (
+                  <ServiceCard
+                    key={service.service_id || service.id}
+                    image={service.image}
+                    title={service.name}
+                    price={`$${numericPrice.toFixed(2)}`}       // safe now
+                    category={service.tag}
+                    onEdit={() =>
+                      navigation.navigate('EditServices', {
+                        service_id: service.service_id || service.id,
+                      })
+                    }
+                    onDelete={() => handleDeleteService(service.service_id || service.id)}
+                  />
+                );
+              })}
             </View>
           )}
 
