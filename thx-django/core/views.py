@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework import viewsets, status, mixins, parsers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ParseError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
@@ -348,9 +348,13 @@ class BookingViewSet(viewsets.ModelViewSet):
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     
-@login_required
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_notifications(request):
-    notifications = Notification.objects.filter(recipient=request.user).order_by('-created_at')
+    notifications = Notification.objects.filter(
+        recipient=request.user
+    ).order_by('-created_at')
+
     data = [
         {
             "id": n.id,
@@ -360,7 +364,7 @@ def get_notifications(request):
         }
         for n in notifications
     ]
-    return JsonResponse(data, safe=False)
+    return Response(data)
 
 @login_required
 def mark_notification_read(request, notif_id):
