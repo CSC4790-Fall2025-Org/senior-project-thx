@@ -57,7 +57,7 @@ const Home = ({navigation}) => {
       }
     }, []);
 
-    const markNotificationRead = useCallback(async (notifId) => {
+    const markRead = useCallback(async (notifId) => {
       try {
         await api(`/notifications/${notifId}/read/`, {
           method: 'POST',
@@ -262,14 +262,14 @@ const Home = ({navigation}) => {
                 <Image source ={require('../assets/logo.png')} style={styles.logo} />
 
                 {/* Avatar with pink outer background and white inner circle (image or emoji) */}
-                <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}>
+                <TouchableOpacity style ={styles.profileFrame}>
                   <View style={styles.avatarOuter}>
                     <View style={styles.avatarInner}>
                       <Ionicons name="notifications-outline" size={30} color="#000000ff" style={{ position: 'absolute'}} onPress={() => setModalVisible(true)} />
                     </View>
                   </View>
                 </TouchableOpacity> 
-                 {/* NOTIFICATION MODAL */}
+
                 <Modal
                   animationType="slide"
                   transparent={true}

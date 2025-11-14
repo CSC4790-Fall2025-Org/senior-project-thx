@@ -366,12 +366,13 @@ def get_notifications(request):
     ]
     return Response(data)
 
-@login_required
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def mark_notification_read(request, notif_id):
     try:
         notif = Notification.objects.get(id=notif_id, recipient=request.user)
         notif.is_read = True
         notif.save()
-        return JsonResponse({"status": "ok"})
+        return Response({"status": "ok"})
     except Notification.DoesNotExist:
-        return JsonResponse({"error": "Notification not found"}, status=404)
+        return Response({"error": "Notification not found"}, status=404)
