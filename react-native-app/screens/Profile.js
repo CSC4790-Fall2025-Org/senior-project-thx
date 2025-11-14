@@ -460,20 +460,6 @@ export default function Profile() {
           {user.services && Array.isArray(user.services) && (
             <View style={AppStyles.servicesContainer}>
               {user.services.map((service) => {
-<<<<<<< HEAD
-                const keyId = String(service.service_id ?? service.id ?? (`svc-${service.user_id ?? 'u'}-${service.name ?? Math.random()}`));
-                const img = service.image ?? null;
-                const priceNum = parsePrice(service.price);
-                const priceStr = `$${(isNaN(priceNum) ? 0 : priceNum).toFixed(2)}`;
-                return (
-                  <ServiceCard
-                    key={keyId}
-                    image={img}
-                    title={service.name}
-                    price={priceStr}
-                    category={service.tag}
-                    onEdit={() => navigation.navigate('EditServices', { service_id: service.service_id || service.id })}
-=======
                 const numericPrice = Number(service.price ?? 0); // force number
 
                 return (
@@ -488,7 +474,6 @@ export default function Profile() {
                         service_id: service.service_id || service.id,
                       })
                     }
->>>>>>> origin/develop
                     onDelete={() => handleDeleteService(service.service_id || service.id)}
                   />
                 );
