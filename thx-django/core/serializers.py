@@ -1,5 +1,6 @@
 from datetime import datetime, time as dt_time
 import json
+from typing import Optional
 
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
@@ -8,6 +9,9 @@ from django.utils.timezone import localdate, localtime, now
 from django.db.models import Q
 
 from .models import Service, Availability, Booking, ServiceImage
+
+import os
+import re
 
 User = get_user_model()
 
@@ -110,7 +114,8 @@ class FullServiceSerializer(BaseServiceSerializer):
     images = serializers.SerializerMethodField()
     location = serializers.CharField(source='user.location', read_only=True)
     user_id = serializers.IntegerField(source='user.id', read_only=True)
-    image = serializers.ImageField(required=False)
+    # return the primary image as an absolute URL string via SerializerMethodField so it's consistent
+    image = serializers.SerializerMethodField()
     isSaved = serializers.SerializerMethodField()
     provider_name = serializers.CharField(source='user.name', read_only=True)
 
@@ -153,8 +158,78 @@ class FullServiceSerializer(BaseServiceSerializer):
             for a in qs
         ]
 
+    def get_image(self, obj):
+        """
+        Return the Service.image field as an absolute URL string or None.
+        """
+        request = self.context.get("request")
+        img_field = getattr(obj, "image", None)
+        if not img_field:
+            return None
+        try:
+            url = img_field.url
+        except Exception:
+            return None
+        if request:
+            try:
+                return request.build_absolute_uri(url)
+            except Exception:
+                return url
+        return url
+
+    def _normalize_url_key(self, url: Optional[str]) -> Optional[str]:
+        """
+        Normalize a URL or filename to a dedupe key by taking its basename and removing trailing
+        underscore+alnum parts before the extension. Lowercases for stable matching.
+        Example: .../file_0sybk5b.jpg -> file.jpg
+        """
+        if not url:
+            return None
+        base = os.path.basename(url)
+        return re.sub(r'_[0-9A-Za-z]+(?=\.\w+$)', '', base).lower()
+
     def get_images(self, obj):
-        return ServiceImageSerializer(obj.images.all(), many=True, context=self.context).data
+        """
+        Return a deduplicated list of image objects (id, url, created_at).
+        Deduplication normalizes filenames so derived copies (e.g. _abcd.jpg) are considered
+        duplicates of the original.
+        """
+        request = self.context.get("request")
+        # serialize DB ServiceImage rows first (they include id + created_at)
+        serialized = ServiceImageSerializer(obj.images.all(), many=True, context=self.context).data or []
+
+        seen = set()
+        out = []
+        for item in serialized:
+            u = item.get("url")
+            if not u:
+                continue
+            key = self._normalize_url_key(u)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append(item)
+
+        # Ensure primary image field (obj.image) is included once if it exists and isn't present already
+        main_url = None
+        try:
+            if getattr(obj, "image", None):
+                main_url = obj.image.url
+                if request:
+                    try:
+                        main_url = request.build_absolute_uri(main_url)
+                    except Exception:
+                        pass
+        except Exception:
+            main_url = None
+
+        main_key = self._normalize_url_key(main_url)
+        if main_url and (main_key not in seen):
+            # insert as first item so 'image' matches images[0] in clients that expect that
+            out.insert(0, {"id": None, "url": main_url, "created_at": None})
+            seen.add(main_key)
+
+        return out
 
     def get_isSaved(self, obj):
         request = self.context.get("request")
@@ -190,6 +265,9 @@ class FullServiceSerializer(BaseServiceSerializer):
         # Handle uploaded images (if request.FILES contains 'images')
         files = request.FILES.getlist("images") if request and hasattr(request.FILES, "getlist") else []
         for f in files:
+            # We intentionally keep image creation simple here; dedupe prevention is performed
+            # in the view (ServiceViewSet.perform_image_save). If you also accept service creation
+            # elsewhere without the view helper, consider applying the same checks here.
             ServiceImage.objects.create(service=service, image=f)
 
         return service

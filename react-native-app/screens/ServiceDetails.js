@@ -45,49 +45,48 @@ const ServiceDetails = ({ route, navigation }) => {
   const [contactLocation, setContactLocation] = useState(null);
   const [saved, setSaved] = useState(false);
 
-useEffect(() => {
-  let mounted = true;
+  useEffect(() => {
+    let mounted = true;
 
-  (async () => {
-    try {
-      setLoading(true);
+    (async () => {
+      try {
+        setLoading(true);
 
-      // 1️⃣ Fetch service details
-      const data = await api(`/services/${id}/`);
-      if (!mounted) return;
+        // 1️⃣ Fetch service details
+        const data = await api(`/services/${id}/`);
+        if (!mounted) return;
 
-      setService(data);
+        setService(data);
 
-      // 2️⃣ Check if current user has this service saved
-      const profile = await api("/profile/me/");
-      const savedServiceIds = profile.saved_services?.map(s => s.id) || [];
-      setSaved(savedServiceIds.includes(data.id));
+        // 2️⃣ Check if current user has this service saved
+        const profile = await api("/profile/me/");
+        const savedServiceIds = profile.saved_services?.map(s => s.id) || [];
+        setSaved(savedServiceIds.includes(data.id));
+      } catch (e) {
+        console.warn("Failed to load service or profile", e);
+        setError(e.message || "Failed to load service");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
 
-    } catch (e) {
-      console.warn("Failed to load service or profile", e);
-      setError(e.message || "Failed to load service");
-    } finally {
-      if (mounted) setLoading(false);
-    }
-  })();
+    return () => { mounted = false; };
+  }, [id]);
 
-  return () => { mounted = false; };
-}, [id]);
+  useEffect(() => {
+    if (!service) return;
 
-useEffect(() => {
-  if (!service) return;
+    const checkSaved = async () => {
+      try {
+        const data = await api(`/services/${id}/`); // or service already has saved info
+        setSaved(data.is_saved || false); // DRF should return is_saved boolean in GET
+      } catch (err) {
+        console.warn("Failed to check saved state", err);
+      }
+    };
 
-  const checkSaved = async () => {
-    try {
-      const data = await api(`/services/${id}/`); // or service already has saved info
-      setSaved(data.is_saved || false); // DRF should return is_saved boolean in GET
-    } catch (err) {
-      console.warn("Failed to check saved state", err);
-    }
-  };
-
-  checkSaved();
-}, [service]);
+    checkSaved();
+  }, [service]);
 
   const providerName = useMemo(() => {
     if (!service) return null;
@@ -118,18 +117,42 @@ useEffect(() => {
     );
   }
 
-  // service.images may be array of either strings or objects {id, url}
-  const images = Array.isArray(service.images) ? service.images : service.image ? [service.image] : [];
-  // helper that resolves each image to a uri string suitable for <Image>
-  const resolveImageUri = (img) => {
-    if (!img) return null;
-    if (typeof img === 'string') return buildAbsolute(img);
-    // object case: prefer obj.url, fall back to obj.uri
-    return buildAbsolute(img.url || img.uri);
-  };
+  // --------------------------------------------------------------------
+  // Normalize and dedupe images (prevents duplicates showing in Recent Works)
+  // Handles cases where service.images and service.image overlap or contain duplicate URIs/IDs.
+  // --------------------------------------------------------------------
+  const _rawImages = Array.isArray(service.images) ? service.images : (service.image ? [service.image] : []);
+  // normalize to { id?: string|null, uri: string } items
+  const normalizedImageObjs = _rawImages
+    .map((img) => {
+      if (!img) return null;
+      if (typeof img === 'string') {
+        const uri = buildAbsolute(img);
+        return uri ? { id: null, uri } : null;
+      }
+      const uri = buildAbsolute(img.url || img.uri || img.path || '');
+      // try to coerce id if available (some backends use id or _id)
+      const id = img.id ?? img._id ?? null;
+      return uri ? { id: id !== undefined ? String(id) : null, uri } : null;
+    })
+    .filter(Boolean);
 
-  // Show only the first image in the top-right image area
-  const firstImageUri = images && images.length > 0 ? resolveImageUri(images[0]) : null;
+  // dedupe using id when present, otherwise uri
+  const seen = new Set();
+  const uniqueImageUris = [];
+  for (const obj of normalizedImageObjs) {
+    const key = obj.id || obj.uri;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueImageUris.push(obj.uri);
+    }
+  }
+
+  // final image list used by UI
+  const images = uniqueImageUris;
+  const firstImageUri = images.length > 0 ? images[0] : null;
+  // (optional) debug:
+  // console.log('Service images raw:', _rawImages, '-> normalized unique:', images);
 
   // Prepare contact info and open modal
   const openContactModal = () => {
@@ -185,33 +208,33 @@ useEffect(() => {
           <Text style={styles.type}>{service.name}</Text>
           {!!providerName && <Text style={styles.provider}>By {providerName}</Text>}
           {!!priceText && <Text style={styles.cost}>{priceText}</Text>}
-          <TouchableOpacity 
-              style={styles.favButton}
-              onPress={async () => {
-                try {
-                  // Immediately toggle in UI for responsiveness
-                  setSaved((prev) => !prev);
+          <TouchableOpacity
+            style={styles.favButton}
+            onPress={async () => {
+              try {
+                // Immediately toggle in UI for responsiveness
+                setSaved((prev) => !prev);
 
-                  const response = await api(`/services/${id}/toggle-save/`, {
-                    method: 'POST',
-                  });
+                const response = await api(`/services/${id}/toggle-save/`, {
+                  method: 'POST',
+                });
 
-                  // Your DRF view returns { saved: true/false }
-                  if (response?.saved !== undefined) {
-                    setSaved(response.saved);
-                  }
-                } catch (error) {
-                  console.error('Failed to toggle save:', error);
-                  // Revert if API fails
-                  setSaved((prev) => !prev);
+                // Your DRF view returns { saved: true/false }
+                if (response?.saved !== undefined) {
+                  setSaved(response.saved);
                 }
-              }}
+              } catch (error) {
+                console.error('Failed to toggle save:', error);
+                // Revert if API fails
+                setSaved((prev) => !prev);
+              }
+            }}
           >
             <FontAwesome name={saved ? "heart" : "heart-o"} size={25} color="#333" />
           </TouchableOpacity>
         </View>
 
-        {/* IMAGE: show only the first image instead of a carousel */}
+        {/* IMAGE: show only the first unique image */}
         <View style={styles.imageCarouselWrapper}>
           {firstImageUri ? (
             <Image source={{ uri: firstImageUri }} style={styles.serviceImage} />
@@ -282,10 +305,9 @@ useEffect(() => {
           <Text style={styles.recentTitle}>Recent Works</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentImageRow}>
             {images && images.length > 0 ? (
-              images.map((img, idx) => {
-                const uri = resolveImageUri(img);
+              images.map((uri, idx) => {
                 return (
-                  <View key={idx} style={styles.recentImageWrapper}>
+                  <View key={uri || idx} style={styles.recentImageWrapper}>
                     <Image source={{ uri }} style={styles.recentImage} />
                   </View>
                 );
@@ -389,12 +411,12 @@ const styles = StyleSheet.create({
 
   textDetails: {
     position: 'absolute',
-    left: 16,               
-    top: '45%',            
-    transform: [{ translateY: -50 }], 
+    left: 16,
+    top: '45%',
+    transform: [{ translateY: -50 }],
     width: '60%',
-    justifyContent: 'center', 
-    alignItems: 'flex-start', 
+    justifyContent: 'center',
+    alignItems: 'flex-start',
   },
   imageCarouselWrapper: { position: 'absolute', top: '28.7%', right: 0, height: 160, width: 160, paddingRight: 8 },
 
