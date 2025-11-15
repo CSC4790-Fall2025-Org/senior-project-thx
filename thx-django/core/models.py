@@ -94,6 +94,7 @@ class Booking(models.Model):
         except Exception:
             return f"Booking {self.pk}"
 
+
 @receiver(post_save, sender=Booking)
 def create_booking_notification(sender, instance, created, **kwargs):
     if created and instance.service and instance.service.user:
