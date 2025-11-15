@@ -14,7 +14,7 @@ from django.db.models import Q
 import logging
 import json
 from datetime import datetime, date, time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from .models import Service, Availability, Booking, ServiceImage
 from .serializers import (
     UserMeSerializer,
@@ -22,6 +22,9 @@ from .serializers import (
     BookingSerializer,
     ServiceImageSerializer,
 )
+import os
+import re
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -77,22 +80,17 @@ class ProfileMeView(APIView):
 
         data = request.data.copy()
 
-        # Special-case: clearing the profile picture. Client sends profile_picture='' in multipart
-        # to indicate "clear". When that happens, remove the file and omit profile_picture from data so serializer doesn't try to set invalid value.
+        # Special-case: clearing the profile picture.
         if "profile_picture" in data and not request.FILES.get("profile_picture") and str(data.get("profile_picture", "")).strip() == "":
             try:
-                # remove file from storage and clear the field
                 user.profile_picture.delete(save=False)
             except Exception:
                 pass
             user.profile_picture = None
             user.save()
-            # remove key so serializer doesn't confuse empty-string with actual upload
             data.pop("profile_picture", None)
 
-        # Prevent accidental overwrite with blank strings for text fields:
-        # If the client submits name/location/email as an empty string but didn't intend to clear them,
-        # we remove those keys so they remain unchanged.
+        # Prevent accidental overwrite with blank strings for text fields
         for k in ("name", "location", "email"):
             if k in data and (data.get(k) is None or str(data.get(k)).strip() == ""):
                 data.pop(k, None)
@@ -102,10 +100,7 @@ class ProfileMeView(APIView):
             logger.warning("[ProfileMeView.patch] serializer invalid. errors=%s request.data=%s", ser.errors, request.data)
             return Response({"detail": "Invalid data", "errors": ser.errors}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Save validated fields
         ser.save()
-
-        # After save, re-serialize and return full canonical object (guarantees profile_picture and other fields present)
         user.refresh_from_db()
         out = UserMeSerializer(user, context={"request": request}).data
         logger.debug("[ProfileMeView.patch] saved. returning: %s", out)
@@ -142,15 +137,80 @@ class ServiceViewSet(viewsets.ModelViewSet):
         ctx["request"] = self.request
         return ctx
 
+    # Helpers for deduping uploads
+    def normalize_name(self, name: str) -> str:
+        """
+        Normalize a filename by removing trailing underscore+alnum tokens
+        before the extension and lowercasing. E.g. file_0sybk5b.jpg -> file.jpg
+        """
+        base = os.path.basename(name or "")
+        return re.sub(r'_[0-9A-Za-z]+(?=\.\w+$)', '', base).lower()
+
+    def compute_file_hash(self, f) -> Optional[str]:
+        """
+        Compute SHA256 hash of an uploaded file-like object.
+        Seeks back to the beginning if possible.
+        Returns hex digest or None on failure.
+        """
+        try:
+            data = f.read()
+            h = hashlib.sha256(data).hexdigest()
+            try:
+                f.seek(0)
+            except Exception:
+                pass
+            return h
+        except Exception:
+            return None
+
     def perform_image_save(self, service, files):
         """
         Persist ServiceImage objects for uploaded files (files is an iterable of UploadedFile).
+        Skip obvious duplicates by normalized filename or by file hash (when readable).
         Returns list of ServiceImage instances created.
         """
         created = []
+
+        # gather normalized names and existing hashes for this service
+        existing_norm = set()
+        existing_hashes = set()
+        for img in service.images.all():
+            try:
+                existing_norm.add(self.normalize_name(img.image.name))
+            except Exception:
+                pass
+            # try to compute hash of existing file via storage open (works for local and many backends)
+            try:
+                with img.image.open('rb') as fh:
+                    existing_hashes.add(hashlib.sha256(fh.read()).hexdigest())
+            except Exception:
+                pass
+
+        # Accept either a list of files or values() from request.FILES
         for f in files:
+            fname = getattr(f, 'name', '') or ''
+            norm = self.normalize_name(fname)
+            if norm in existing_norm:
+                # obvious filename duplicate — skip
+                continue
+
+            file_hash = self.compute_file_hash(f)
+            if file_hash and file_hash in existing_hashes:
+                # exact content duplicate — skip
+                continue
+
+            # Save the DB row and file
             img = ServiceImage.objects.create(service=service, image=f)
             created.append(img)
+
+            # update trackers to avoid duplicates inside the same request
+            try:
+                existing_norm.add(self.normalize_name(img.image.name))
+            except Exception:
+                pass
+            if file_hash:
+                existing_hashes.add(file_hash)
+
         return created
 
     def create(self, request, *args, **kwargs):
@@ -291,9 +351,6 @@ class BookingViewSet(viewsets.ModelViewSet):
                 or self.request.headers.get("X-Bookings-Role")
                 or "client").lower()
 
-        # if role not in {"client", "provider"}:
-        #     raise ParseError(detail="Invalid role. Use 'client' or 'provider'.")
-
         qs = self.queryset
         if role == "provider":
             return qs.filter(service__user=user)
@@ -301,18 +358,6 @@ class BookingViewSet(viewsets.ModelViewSet):
             return qs.filter(user=user)
         else:
             return qs.filter(Q(user=user) | Q(service__user=user))
-        # if role == "provider":
-        #     return qs.filter(service__user=user)
-        # elif role == "client":
-        #     return qs.filter(user=user)
-        # else:
-        # # Allow both roles if unspecified (for DELETE calls that don't send ?role=)
-        #     return qs.filter(Q(user=user) | Q(service__user=user))
-        # if role == "provider":
-        #     # Bookings made on services that this user provides
-        #     return qs.filter(service__user=user)
-        # # role == "client" (default): bookings this user made
-        # return qs.filter(user=user)
 
     def create(self, request, *args, **kwargs):
         user = resolve_request_user(request)
@@ -326,12 +371,6 @@ class BookingViewSet(viewsets.ModelViewSet):
         out = self.get_serializer(booking)
         return Response(out.data, status=status.HTTP_201_CREATED)
 
-    # def destroy(self, request, *args, **kwargs):
-    #     # NOTE: Deletion remains scoped to client-owned bookings.
-    #     # Providers won't be able to delete client bookings through this action.
-    #     instance = self.get_object()
-    #     instance.delete()
-    #     return Response(status=status.HTTP_204_NO_CONTENT)
     def destroy(self, request, *args, **kwargs):
         user = resolve_request_user(request)
 

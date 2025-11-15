@@ -96,6 +96,31 @@ const toTimeLabel = (d) => {
   }
 };
 
+// robust normalization for incoming price values
+const normalizeIncomingPrice = (raw) => {
+  if (raw === null || raw === undefined) return "";
+  if (typeof raw === "number" && !Number.isNaN(raw)) return String(raw);
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    const n = Number(trimmed);
+    if (!Number.isNaN(n)) return String(n);
+    // try to strip non-digit characters
+    const cleaned = trimmed.replace(/[^\d.-]/g, '');
+    const n2 = Number(cleaned);
+    if (!Number.isNaN(n2)) return String(n2);
+    return trimmed;
+  }
+  if (typeof raw === "object") {
+    if (raw.$numberDecimal) return String(Number(raw.$numberDecimal) || "");
+    try {
+      const v = raw.valueOf ? raw.valueOf() : String(raw);
+      const n = Number(v);
+      if (!Number.isNaN(n)) return String(n);
+    } catch (e) {}
+  }
+  return "";
+};
+
 export default function EditServices({ navigation, route }) {
   const { height: winH } = useWindowDimensions();
   const sheetHeight = Math.max(320, Math.round(winH * 0.5));
@@ -109,18 +134,16 @@ export default function EditServices({ navigation, route }) {
   const [price, setPrice] = useState("");
   const [tag, setTag] = useState("");
 
-  // images are normalized objects: { id?, uri }
   const [images, setImages] = useState([]);
   const [originalImageIds, setOriginalImageIds] = useState([]);
 
   const [tagPickerVisible, setTagPickerVisible] = useState(false);
 
-  // Default to tomorrow; today is not allowed
   const [selectedDate, setSelectedDate] = useState(tomorrowISO());
   const [slotsByDate, setSlotsByDate] = useState({});
 
   const [timeModalVisible, setTimeModalVisible] = useState(false);
-  const [timeEditing, setTimeEditing] = useState(null); // { dateKey, id, field }
+  const [timeEditing, setTimeEditing] = useState(null);
   const [tempTime, setTempTime] = useState(new Date());
 
   const readAccessToken = async () => {
@@ -141,7 +164,7 @@ export default function EditServices({ navigation, route }) {
 
         setService(s.name || "");
         setDescription(s.description || "");
-        setPrice(String(s.price ?? ""));
+        setPrice(normalizeIncomingPrice(s.price));
         setTag(s.type || "");
 
         const srvImages = Array.isArray(s.images) ? s.images : s.image ? [s.image] : [];
@@ -246,12 +269,12 @@ export default function EditServices({ navigation, route }) {
       const fd = new FormData();
       fd.append("name", service);
       fd.append("description", description);
-      fd.append("price", String(price || 0));
+      // always send numeric price string
+      fd.append("price", String(Number(price || 0)));
       fd.append("type", tag);
       fd.append("availability", JSON.stringify(availability));
 
       if (removedIds.length > 0) {
-        // tell server to delete those existing images
         fd.append("remove_image_ids", JSON.stringify(removedIds));
       }
 
@@ -260,11 +283,9 @@ export default function EditServices({ navigation, route }) {
         const filename = uri.split("/").pop();
         const match = /\.(\w+)$/.exec(filename);
         const type = match ? `image/${match[1].toLowerCase()}` : "image/jpeg";
-        // ensure unique name if multiple files
         fd.append("images", { uri, name: filename || `photo_${idx}.jpg`, type });
       });
 
-      // Use fetch so we control headers (do NOT set Content-Type)
       const accessToken = await readAccessToken();
       const headers = {};
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
@@ -284,7 +305,6 @@ export default function EditServices({ navigation, route }) {
       try { updated = JSON.parse(text); } catch (e) { /* ignore */ }
 
       if (updated) {
-        // normalize returned images and update state so UI reflects server canonical response
         const srvImages = Array.isArray(updated.images) ? updated.images : updated.image ? [updated.image] : [];
         const normalized = srvImages
           .map((u) => {
@@ -297,10 +317,10 @@ export default function EditServices({ navigation, route }) {
           .filter(Boolean);
         setImages(normalized);
         setOriginalImageIds(normalized.map((i) => i.id).filter(Boolean));
-        // optionally update other fields in UI from returned object
+
         setService(updated.name || service);
         setDescription(updated.description || description);
-        setPrice(String(updated.price ?? price));
+        setPrice(normalizeIncomingPrice(updated.price ?? price));
         setTag(updated.type || tag);
       }
 
@@ -331,7 +351,7 @@ export default function EditServices({ navigation, route }) {
           <TextInput style={[styles.input, styles.textarea]} value={description} onChangeText={setDescription} placeholder="Describe your service" multiline scrollEnabled textAlignVertical="top" />
 
           <Text style={styles.label}>Price</Text>
-          <TextInput style={styles.input} value={price} onChangeText={setPrice} keyboardType="decimal-pad" placeholder="0.00" />
+          <TextInput style={styles.input} value={price} onChangeText={(v) => setPrice(v)} keyboardType="decimal-pad" placeholder="0.00" />
 
           <Text style={styles.label}>Service Tag</Text>
           <TouchableOpacity style={styles.select} onPress={() => setTagPickerVisible(true)}>
@@ -394,14 +414,7 @@ export default function EditServices({ navigation, route }) {
                 <Text style={{ color: "#6B7280" }}>{selectedDate}</Text>
               </View>
               <View style={{ flex: 1, alignSelf: "stretch" }}>
-                <DateTimePicker
-                  value={tempTime}
-                  textColor="#000"
-                  mode="time"
-                  display="spinner"
-                  onChange={(_, d) => { if (d) setTempTime(d); }}
-                  style={{ flex: 1, alignSelf: "stretch" }}
-                />
+                <DateTimePicker value={tempTime} textColor="#000" mode="time" display="spinner" onChange={(_, d) => { if (d) setTempTime(d); }} style={{ flex: 1, alignSelf: "stretch" }} />
               </View>
             </View>
           </View>
