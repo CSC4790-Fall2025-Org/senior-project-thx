@@ -74,6 +74,20 @@ const Home = ({navigation}) => {
       }
     }, []);
 
+    const handlePressNotification = async (notifId) => {
+      try {
+        await api(`/notifications/${notifId}/read/`, { method: "POST" });
+        setNotifications(prev =>
+          prev.map(n =>
+            n.id === notifId ? { ...n, is_read: true } : n
+          )
+        );
+        fetchNotifications(); // refresh state
+      } catch (e) {
+        console.warn("Failed to mark read", e);
+      }
+    };
+
     useEffect(() => {
       fetchProfile();
       fetchNotifications();
@@ -262,10 +276,14 @@ const Home = ({navigation}) => {
                 <Image source ={require('../assets/logo.png')} style={styles.logo} />
 
                 {/* Avatar with pink outer background and white inner circle (image or emoji) */}
-                <TouchableOpacity style ={styles.profileFrame}>
+                <TouchableOpacity style ={styles.profileFrame} onPress={() =>setModalVisible(true)}>
                   <View style={styles.avatarOuter}>
                     <View style={styles.avatarInner}>
-                      <Ionicons name="notifications-outline" size={30} color="#000000ff" style={{ position: 'absolute'}} onPress={() => setModalVisible(true)} />
+                      {notifications.some(n => !n.is_read) ? (
+                        <Ionicons name="notifications" size={30} color="#000000ff" />
+                      ) : (
+                        <Ionicons name="notifications-outline" size={30} color="#000000ff" />
+                      )}
                     </View>
                   </View>
                 </TouchableOpacity> 
@@ -296,10 +314,9 @@ const Home = ({navigation}) => {
                               styles.item,
                               !item.is_read && styles.unread,
                             ]}
-                            onPress={() => markRead(item.id)}
+                            onPress={() => handlePressNotification(item.id)}
                           >
                             <Text style={styles.text}>{item.message}</Text>
-                            <Text style={styles.date}>{item.created_at}</Text>
                           </TouchableOpacity>
                         )}
                       />
@@ -412,44 +429,13 @@ const styles = StyleSheet.create({
   searchIcon: { position: 'relative', left: '5.4%', top: '25%', height: 24, width: 24 },
   input: { position: 'absolute', left: '18.3%', top: '29.8%', height: 18, width: 227, fontFamily: 'Poppins', fontSize: 13, color: '#000', padding: 0 },
 
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modal: {
-    width: "90%",
-    height: "70%",
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 15,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "600",
-  },
-  item: {
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  unread: {
-    backgroundColor: "#f3f6ff",
-  },
-  text: {
-    fontSize: 16,
-  },
-  date: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "gray",
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", },
+  modal: { width: "90%", height: "70%", backgroundColor: "white", borderRadius: 12, padding: 15,},
+  header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10, },
+  title: { fontSize: 20, fontWeight: "600",},
+  item: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: "#eee", },
+  unread: { backgroundColor: "#f3f6ff",},
+  text: { fontSize: 16, },
 
   // TOP SERVICES CONTENT
   categoryContent: { height: height * 0.20, width: '100%', position: 'relative', zIndex: 1 },
