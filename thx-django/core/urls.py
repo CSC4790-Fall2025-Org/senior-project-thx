@@ -1,3 +1,4 @@
+from . import views
 from rest_framework import routers
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -15,4 +16,6 @@ urlpatterns = [
     path("profile/me/", ProfileMeView.as_view(), name="profile-me"),
     path('auth/', include('core.authentication.urls')),
     path('services/<int:pk>/toggle_saved/', ServiceViewSet.as_view({'post': 'toggle_saved'}), name='toggle_saved'),
+    path('notifications/', views.get_notifications, name='get_notifications'),
+    path('notifications/<int:notif_id>/read/', views.mark_notification_read, name='mark_notification_read'),
 ]

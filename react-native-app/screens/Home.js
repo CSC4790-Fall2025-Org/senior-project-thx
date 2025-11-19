@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View, Dimensions, TouchableOpacity, TextInput, FlatList, ActivityIndicator, RefreshControl, Image } from 'react-native';
+import { StyleSheet, Text, View, Dimensions, TouchableOpacity, TextInput, FlatList, ActivityIndicator, RefreshControl, Image, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -39,6 +39,60 @@ const Home = ({navigation}) => {
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState('');
+    const [modalVisible, setModalVisible] = useState(false);
+    const [notifications, setNotifications] = useState([]);
+
+    useEffect(() => {
+      if (modalVisible) {
+        fetchNotifications();
+      }
+    }, [modalVisible]);
+
+    const fetchNotifications = useCallback(async () => {
+      try {
+        const data = await api('/notifications/');
+        setNotifications(data);
+      } catch (e) {
+        console.warn('Failed to fetch notifications', e);
+      }
+    }, []);
+
+    const markRead = useCallback(async (notifId) => {
+      try {
+        await api(`/notifications/${notifId}/read/`, {
+          method: 'POST',
+          body: {}, 
+        });
+
+        setNotifications(prev =>
+          prev.map(n =>
+            n.id === notifId ? { ...n, is_read: true } : n
+          )
+        );
+      } catch (e) {
+        console.warn('Failed to mark notification read', e);
+      }
+    }, []);
+
+    const handlePressNotification = async (notifId) => {
+      try {
+        await api(`/notifications/${notifId}/read/`, { method: "POST" });
+        setNotifications(prev =>
+          prev.map(n =>
+            n.id === notifId ? { ...n, is_read: true } : n
+          )
+        );
+        fetchNotifications(); // refresh state
+      } catch (e) {
+        console.warn("Failed to mark read", e);
+      }
+    };
+
+    useEffect(() => {
+      fetchProfile();
+      fetchNotifications();
+    }, [fetchProfile, fetchNotifications]);
+
 
     // debounce search input -> updates 'search' after 350ms pause
     const debounceTimer = useRef(null);
@@ -222,18 +276,53 @@ const Home = ({navigation}) => {
                 <Image source ={require('../assets/logo.png')} style={styles.logo} />
 
                 {/* Avatar with pink outer background and white inner circle (image or emoji) */}
-                <TouchableOpacity style ={styles.profileFrame} onPress={() => navigation.navigate('Profile')}>
+                <TouchableOpacity style ={styles.profileFrame} onPress={() =>setModalVisible(true)}>
                   <View style={styles.avatarOuter}>
                     <View style={styles.avatarInner}>
-                      {profileImageUri ? (
-                        <Image source={{ uri: profileImageUri }} style={styles.profileImage} />
+                      {notifications.some(n => !n.is_read) ? (
+                        <Ionicons name="notifications" size={30} color="#000000ff" />
                       ) : (
-                        <Text style={styles.profileEmoji}>🙂</Text>
+                        <Ionicons name="notifications-outline" size={30} color="#000000ff" />
                       )}
                     </View>
                   </View>
                 </TouchableOpacity> 
-                
+
+                <Modal
+                  animationType="slide"
+                  transparent={true}
+                  visible={modalVisible}
+                  onRequestClose={() => setModalVisible(false)}
+                >
+                  <View style={styles.overlay}>
+                    <View style={styles.modal}>
+                      {/* Header */}
+                      <View style={styles.header}>
+                        <Text style={styles.title}>Notifications</Text>
+                        <TouchableOpacity onPress={() => setModalVisible(false)}>
+                          <Ionicons name="close" size={28} />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Notifications List */}
+                      <FlatList
+                        data={notifications}
+                        keyExtractor={(item) => item.id.toString()}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity
+                            style={[
+                              styles.item,
+                              !item.is_read && styles.unread,
+                            ]}
+                            onPress={() => handlePressNotification(item.id)}
+                          >
+                            <Text style={styles.text}>{item.message}</Text>
+                          </TouchableOpacity>
+                        )}
+                      />
+                    </View>
+                  </View>
+                </Modal>
                 <View style ={styles.textInputBox}> 
                     <View style ={styles.searchIcon}> 
                         <EvilIcons name="search" size={24}/> 
@@ -340,6 +429,14 @@ const styles = StyleSheet.create({
   searchIcon: { position: 'relative', left: '5.4%', top: '25%', height: 24, width: 24 },
   input: { position: 'absolute', left: '18.3%', top: '29.8%', height: 18, width: 227, fontFamily: 'Poppins', fontSize: 13, color: '#000', padding: 0 },
 
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", },
+  modal: { width: "90%", height: "70%", backgroundColor: "white", borderRadius: 12, padding: 15,},
+  header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10, },
+  title: { fontSize: 20, fontWeight: "600",},
+  item: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: "#eee", },
+  unread: { backgroundColor: "#f3f6ff",},
+  text: { fontSize: 16, },
+
   // TOP SERVICES CONTENT
   categoryContent: { height: height * 0.20, width: '100%', position: 'relative', zIndex: 1 },
   topServiceText: { position: 'absolute', left: '4.4%', top: '8%', fontSize: 24, fontWeight: 'bold', fontFamily: 'Poppins' },
@@ -368,7 +465,7 @@ const styles = StyleSheet.create({
   bookButtonText: { fontFamily: 'Poppins', fontSize: 12, color: '#FFFFFF' },
 
   // NAV BAR
-  navBarContainer: { height: '9%', width: '100%', position: 'absolute', bottom: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#ccc', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', zIndex: 10 },
+  navBarContainer: { height: '9%', width: '100%', position: 'absolute', bottom: 15, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#ccc', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', zIndex: 10 },
 });
 
 export default Home;

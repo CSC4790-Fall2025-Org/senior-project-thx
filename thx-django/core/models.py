@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.db.models import F, Q
 from django.conf import settings
@@ -91,6 +93,57 @@ class Booking(models.Model):
             return f"{self.service.name} on {self.time.date}"
         except Exception:
             return f"Booking {self.pk}"
+
+
+@receiver(post_save, sender=Booking)
+def create_booking_notification(sender, instance, created, **kwargs):
+    if not created:
+        return
+    
+    if not instance.service or not instance.service.user:
+        return
+
+    # Extract the date + start/end times from the availability object
+    date_obj = instance.time.date  # A Python date object
+    start_time_obj = instance.time.start_time  # Python time
+    end_time_obj = instance.time.end_time
+
+    # Format date: "November 26, 2025"
+    date_str = date_obj.strftime("%B %d, %Y")
+
+    # Format times: "10:00 AM" – "11:00 AM"
+    start_str = start_time_obj.strftime("%I:%M %p").lstrip("0")
+    end_str = end_time_obj.strftime("%I:%M %p").lstrip("0")
+
+    # Customer name fallback
+    customer = instance.customer_name or "Someone"
+
+    # Final message
+    message = (
+        f"{customer} booked your service '{instance.service.name}' "
+        f"for {date_str} at {start_str}–{end_str}."
+    )
+
+    Notification.objects.create(
+        recipient=instance.service.user,
+        message=message
+    )
+        
+class Notification(models.Model):
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications"
+    )
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Notification for {self.recipient.email}: {self.message[:40]}"
 
 
 class ServiceImage(models.Model):

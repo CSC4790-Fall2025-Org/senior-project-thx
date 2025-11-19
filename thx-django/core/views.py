@@ -2,11 +2,14 @@ from rest_framework.views import APIView
 from rest_framework import viewsets, status, mixins, parsers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ParseError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from .models import Notification
 from django.db.models import Q
 import logging
 import json
@@ -383,3 +386,32 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_notifications(request):
+    notifications = Notification.objects.filter(
+        recipient=request.user
+    ).order_by('-created_at')
+
+    data = [
+        {
+            "id": n.id,
+            "message": n.message,
+            "is_read": n.is_read,
+            "created_at": n.created_at.strftime("%Y-%m-%d %H:%M"),
+        }
+        for n in notifications
+    ]
+    return Response(data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_notification_read(request, notif_id):
+    try:
+        notif = Notification.objects.get(id=notif_id, recipient=request.user)
+        notif.is_read = True
+        notif.save()
+        return Response({"status": "ok"})
+    except Notification.DoesNotExist:
+        return Response({"error": "Notification not found"}, status=404)
