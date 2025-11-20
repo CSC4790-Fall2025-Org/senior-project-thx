@@ -13,24 +13,52 @@ const { height } = Dimensions.get('window');
 const Login = ({navigation}) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+
     const handleLogin = async () => {
-        try {
-          const data = await api('/auth/login/', {
-            method: 'POST',
-            body: JSON.stringify({email, password }), // or email if backend supports it
-          });
-      
-          console.log('✅ LOGIN SUCCESS', data);
-      
-          await AsyncStorage.setItem('access_token', data.access);
-          await AsyncStorage.setItem('refresh_token', data.refresh);
-      
-          navigation.navigate('Home');
-        } catch (err) {
-          console.log('❌ LOGIN FAILED', err.message);
-          Alert.alert('Login Error', err.message);
+
+        // ⭐ Catch blank fields BEFORE sending request
+        if (!email.trim() || !password.trim()) {
+            Alert.alert("Failed to Login", "Email and Password must be filled in");
+            return;
         }
-      };
+    
+        try {
+            const data = await api('/auth/login/', {
+                method: 'POST',
+                body: JSON.stringify({ email, password }),
+            });
+    
+            console.log('✅ LOGIN SUCCESS', data);
+    
+            await AsyncStorage.setItem('access_token', data.access);
+            await AsyncStorage.setItem('refresh_token', data.refresh);
+    
+            navigation.navigate('Home');
+        } catch (err) {
+            console.log('❌ LOGIN FAILED', err);
+    
+            let message = "Email and Password do not match";
+    
+            let backendError = null;
+    
+            if (err.response && err.response._bodyText) {
+                try {
+                    backendError = JSON.parse(err.response._bodyText);
+                } catch (e) {}
+            }
+    
+            // ----- WRONG CREDENTIALS -----
+            if (
+                backendError?.detail?.includes("No active account") ||
+                backendError?.detail?.includes("Unable to log in")
+            ) {
+                message = "Email and Password do not match";
+            }
+    
+            Alert.alert("Failed to Login", message);
+        }
+    };
+    
     // const handleLogin = async () => {
     //     try {
     //       const response = await fetch(`${API_HOST}/api/auth/login/`, {

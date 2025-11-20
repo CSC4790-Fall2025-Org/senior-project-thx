@@ -136,7 +136,8 @@ export default function MyBookings({ navigation }) {
                 setClientBookings(updatedClient);
               }
   
-              Alert.alert('Deleted', `Booking ID ${id} was successfully deleted.`, [{ text: 'OK' }]);
+              Alert.alert('Booking Deleted', '', [{ text: 'OK' }]);
+
             } catch (error) {
               Alert.alert('Error', error.message || 'Failed to delete booking');
             } finally {
