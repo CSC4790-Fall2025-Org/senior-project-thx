@@ -14,25 +14,51 @@ const SignUp = ({navigation}) => {
     const [password, setPassword] = useState('');
 
     const handleSignUp = async () => {
-        console.log('Sign Up Pressed')
+        console.log('Sign Up Pressed');
         try {
             const response = await fetch(`${API_HOST}/api/auth/register/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ email, password }), 
+                body: JSON.stringify({ email, password }),
             });
-
+    
             if (response.ok) {
                 Alert.alert('Success', 'Account created successfully!');
                 navigation.navigate('Login');
-            } else {
-                const errorData = await response.json();
-                Alert.alert('Sign Up Failed', JSON.stringify(errorData));
+                return;
             }
+    
+            // Parse error JSON
+            const errorData = await response.json();
+            let message = "Sign Up Failed";
+    
+            // ----- BLANK EMAIL OR PASSWORD -----
+            if (errorData.email?.includes("This field may not be blank.") ||
+                errorData.password?.includes("This field may not be blank.")) {
+                message = "Email and Password must be filled in";
+            }
+    
+            // ----- INVALID DOMAIN -----
+            else if (errorData.email?.includes("Email must be a valid @villanova.edu address.")) {
+                message = "Must be a Villanova email";
+            }
+    
+            // ----- EMAIL ALREADY EXISTS -----
+            else if (errorData.email?.includes("user with this email already exists.")) {
+                message = "User with this email already exists";
+            }
+    
+            // ----- FALLBACK -----
+            else {
+                message = "Sign Up Failed";
+            }
+    
+            Alert.alert("Sign Up Failed", message);
+    
         } catch (error) {
-        Alert.alert('Error', error.message);
+            Alert.alert("Error", error.message);
         }
     };
     return (

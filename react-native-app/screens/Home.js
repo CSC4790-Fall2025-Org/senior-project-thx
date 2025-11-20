@@ -18,6 +18,7 @@ const TOP_CATEGORIES = [
   { id: 'Cooking', name: 'Cooking', iconLib: 'MaterialCommunityIcons', iconName: 'chef-hat' },
   { id: 'Tutoring', name: 'Tutoring', iconLib: 'MaterialCommunityIcons', iconName: 'school' },
   { id: 'Makeup', name: 'Makeup', iconLib: 'FontAwesome5', iconName: 'palette' },
+  { id: 'Other', name: 'Other', iconLib: 'Ionicons', iconName: 'apps' },
 ];
 
 const DEMO_HEADERS = {};
@@ -461,11 +462,11 @@ const styles = StyleSheet.create({
   serviceType: { fontSize: 16, fontWeight: '600', fontFamily: 'Poppins', color: '#1E1E1E', marginBottom: 5 },
   providerName: { fontSize: 13, fontWeight: '500', fontFamily: 'Poppins', color: '#555', marginBottom: 5 },
   serviceCost: { fontSize: 18, fontFamily: 'Poppins', fontWeight: 'bold', color: '#000000', marginBottom: 10 },
-  bookButton: { alignSelf: 'flex-start', position: 'absolute', right: '5.8%', top: '90%', backgroundColor: '#ED7678', paddingHorizontal: 15, paddingVertical: 5, borderRadius: 10 },
-  bookButtonText: { fontFamily: 'Poppins', fontSize: 12, color: '#FFFFFF' },
+  bookButton: { alignSelf: 'flex-start', position: 'absolute', height: '25%', width: '20%', right: '5.8%', top: '90%', backgroundColor: '#ED7678', paddingHorizontal: 15, paddingVertical: 5, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  bookButtonText: { fontFamily: 'Poppins', fontSize: 12, color: '#FFFFFF', },
 
   // NAV BAR
-  navBarContainer: { height: '9%', width: '100%', position: 'absolute', bottom: 15, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#ccc', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', zIndex: 10 },
+  navBarContainer: { height: '10%', width: '100%', position: 'absolute', bottom: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#ccc', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', zIndex: 10 },
 });
 
 export default Home;

@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
 
   gradient: { height: height * 0.29, width: '100%' },
   backInline: { flexDirection: 'row', alignItems: 'center' },
-  backButton: {  top: '20%', left: '3.6%' },
+  backButton: {  top: '20%', left: '3.6%'},
 
   textDetails: {
     position: 'absolute',
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
   activeTabText: { color: '#3C1E10' },
 
   tabContentWrapper: { alignItems: 'center', flex: 1 },
-  aboutScrollContainer: { minHeight: height * 0.22 },
+  aboutScrollContainer: { minHeight: height * 0.19},
   tabContentScroll: { width: 347, paddingHorizontal: 5, paddingVertical: 10 },
   tabContentText: { fontSize: 20, color: '#3C1E10', fontFamily: 'Poppins', lineHeight: 30 },
 

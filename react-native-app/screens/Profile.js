@@ -534,18 +534,5 @@ const modalStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  navBarContainer: {
-    height: 62,
-    width: '100%',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: '#ccc',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    zIndex: 10,
-  },
+  navBarContainer: { height: '10%', width: '100%', position: 'absolute', bottom: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#ccc', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', zIndex: 10 },
 });

@@ -20,7 +20,7 @@ import Icon from "react-native-vector-icons/Ionicons";
 import ImageGalleryPicker from "../components/ImageGalleryPicker";
 import { api } from "../src/api";
 
-const TAG_OPTIONS = ["Haircuts","Nails","Makeup","Tutoring","Cooking","Cleaning"];
+const TAG_OPTIONS = ["Haircuts","Nails","Makeup","Tutoring","Cooking","Cleaning", "Other"];
 
 // Helpers
 const todayISO = () => new Date().toISOString().slice(0, 10);

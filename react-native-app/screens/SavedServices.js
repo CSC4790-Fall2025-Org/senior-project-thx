@@ -297,19 +297,7 @@ const styles = StyleSheet.create({
         paddingBottom: 90, 
         gap: 10, 
     }, 
-    navBarContainer: { 
-        height: '9%', 
-        width: '100%', 
-        position: 'absolute', 
-        bottom: 0, 
-        backgroundColor: '#fff', 
-        borderTopWidth: 1, 
-        borderTopColor: '#ccc', 
-        flexDirection: 'row', 
-        justifyContent: 'space-around', 
-        alignItems: 'center', 
-        zIndex: 10, 
-      }, 
+    navBarContainer: { height: '10%', width: '100%', position: 'absolute', bottom: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#ccc', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', zIndex: 10 },
 }); 
 
 export default SavedServices;

@@ -6,22 +6,30 @@ from rest_framework_simplejwt.tokens import RefreshToken
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
-
     def validate(self, data):
         email = data.get("email", "")
         password = data.get("password", "")
 
-        if email is None or password is None:
-            raise serializers.ValidationError("Both email and password are required.")
+        if email.strip() == "" or password.strip() == "":
+            raise serializers.ValidationError(
+                {"detail": "Email and Password must be filled in."}
+            )
 
-        
-        user = authenticate(request=self.context.get('request'), email=email, password=password)
+        user = authenticate(
+            request=self.context.get('request'),
+            email=email,
+            password=password
+        )
 
         if user is None:
-            raise serializers.ValidationError("Invalid email or password.")
+            raise serializers.ValidationError(
+                {"detail": "Invalid email or password."}
+            )
 
         if not user.is_active:
-            raise serializers.ValidationError("Account is disabled.")
+            raise serializers.ValidationError(
+                {"detail": "Account is disabled."}
+            )
 
         refresh = RefreshToken.for_user(user)
 
@@ -32,9 +40,37 @@ class LoginSerializer(serializers.Serializer):
                 'id': user.id,
                 'email': user.email,
                 'name': user.name,
-            
             }
         }
+
+    # def validate(self, data):
+    #     email = data.get("email", "")
+    #     password = data.get("password", "")
+
+    #     if email is None or password is None:
+    #         raise serializers.ValidationError("Both email and password are required.")
+
+        
+    #     user = authenticate(request=self.context.get('request'), email=email, password=password)
+
+    #     if user is None:
+    #         raise serializers.ValidationError("Invalid email or password.")
+
+    #     if not user.is_active:
+    #         raise serializers.ValidationError("Account is disabled.")
+
+    #     refresh = RefreshToken.for_user(user)
+
+    #     return {
+    #         'refresh': str(refresh),
+    #         'access': str(refresh.access_token),
+    #         'user': {
+    #             'id': user.id,
+    #             'email': user.email,
+    #             'name': user.name,
+            
+    #         }
+    #     }
 
         # Use email to find user
         # try:

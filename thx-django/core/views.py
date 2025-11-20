@@ -385,7 +385,8 @@ class BookingViewSet(viewsets.ModelViewSet):
             time_obj.save(update_fields=["is_booked"])
 
         instance.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response("Booking Deleted", status=status.HTTP_200_OK)
+
     
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
