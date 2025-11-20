@@ -16,7 +16,6 @@ const Login = ({navigation}) => {
 
     const handleLogin = async () => {
 
-        // ⭐ Catch blank fields BEFORE sending request
         if (!email.trim() || !password.trim()) {
             Alert.alert("Failed to Login", "Email and Password must be filled in");
             return;
@@ -47,7 +46,6 @@ const Login = ({navigation}) => {
                 } catch (e) {}
             }
     
-            // ----- WRONG CREDENTIALS -----
             if (
                 backendError?.detail?.includes("No active account") ||
                 backendError?.detail?.includes("Unable to log in")
