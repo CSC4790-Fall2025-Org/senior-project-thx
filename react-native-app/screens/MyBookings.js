@@ -368,20 +368,7 @@ const styles = StyleSheet.create({
   tabText: { fontSize: width * 0.038, color: '#666', fontWeight: '600' },
   tabTextActive: { color: colors.heading },
 
-  navBarContainer: {
-    height: 62,
-    width: '100%',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: '#ccc',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    zIndex: 10,
-  },
+  navBarContainer: { height: '10%', width: '100%', position: 'absolute', bottom: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#ccc', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', zIndex: 10 },
 
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });
