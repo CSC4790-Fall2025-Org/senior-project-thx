@@ -157,7 +157,6 @@ class FullServiceSerializer(BaseServiceSerializer):
             }
             for a in qs
         ]
-
     def get_image(self, obj):
         """
         Return the Service.image field as an absolute URL string or None.
@@ -230,7 +229,7 @@ class FullServiceSerializer(BaseServiceSerializer):
             seen.add(main_key)
 
         return out
-
+    
     def get_isSaved(self, obj):
         request = self.context.get("request")
         user = getattr(request, "user", None)
@@ -265,9 +264,6 @@ class FullServiceSerializer(BaseServiceSerializer):
         # Handle uploaded images (if request.FILES contains 'images')
         files = request.FILES.getlist("images") if request and hasattr(request.FILES, "getlist") else []
         for f in files:
-            # We intentionally keep image creation simple here; dedupe prevention is performed
-            # in the view (ServiceViewSet.perform_image_save). If you also accept service creation
-            # elsewhere without the view helper, consider applying the same checks here.
             ServiceImage.objects.create(service=service, image=f)
 
         return service
@@ -290,11 +286,44 @@ class FullServiceSerializer(BaseServiceSerializer):
             )
             slots = _normalize_availability_payload(raw_payload)
 
-            Availability.objects.filter(service=instance).delete()
-            if slots:
-                Availability.objects.bulk_create(Availability(service=instance, **s) for s in slots)
+            # only modify FREE slots; never delete booked ones
 
-        return instance
+            # Existing availability rows for this service
+            existing = list(Availability.objects.filter(service=instance))
+            # Map of (date, start_time, end_time) -> Availability
+            existing_by_key = {
+                (a.date, a.start_time, a.end_time): a
+                for a in existing
+            }
+
+            # Incoming desired free slots as keys
+            incoming_keys = set(
+                (s["date"], s["start_time"], s["end_time"])
+                for s in slots
+            )
+
+            # 1) Delete unbooked slots that are NOT in incoming payload
+            for a in existing:
+                key = (a.date, a.start_time, a.end_time)
+                # Check if this availability is currently booked
+                has_booking = Booking.objects.filter(time=a).exists()
+                if has_booking:
+                    # booked slots must be preserved, regardless of payload
+                    continue
+
+                # If this free slot is not in the payload, delete it
+                if key not in incoming_keys:
+                    a.delete()
+
+            # 2) Create new free slots that don't already exist
+            for s in slots:
+                key = (s["date"], s["start_time"], s["end_time"])
+                if key in existing_by_key:
+                    # already have this slot, leave as is
+                    continue
+                Availability.objects.create(service=instance, **s)
+
+            return instance
 
 
 # Optional Simple version — for lists, where full detail not needed
