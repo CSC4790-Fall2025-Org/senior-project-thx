@@ -75,6 +75,15 @@ const Home = ({navigation}) => {
       }
     }, []);
 
+    const handleDeleteNotification = async (notifId) => {
+      try {
+        await api(`/notifications/${notifId}/delete/`, { method: 'DELETE' });
+        setNotifications(prev => prev.filter(n => n.id !== notifId));
+      } catch (e) {
+        console.warn('Failed to delete notification', e);
+      }
+    };
+
     const handlePressNotification = async (notifId) => {
       try {
         await api(`/notifications/${notifId}/read/`, { method: "POST" });
@@ -94,6 +103,13 @@ const Home = ({navigation}) => {
       fetchNotifications();
     }, [fetchProfile, fetchNotifications]);
 
+    useEffect(() => {
+      const interval = setInterval(() => {
+        fetchNotifications();  
+      }, 10000); // 10 seconds
+
+      return () => clearInterval(interval); 
+    }, [fetchNotifications]);
 
     // debounce search input -> updates 'search' after 350ms pause
     const debounceTimer = useRef(null);
@@ -269,7 +285,7 @@ const Home = ({navigation}) => {
         <View style={styles.container}> 
         {/* LINEAR GRADIENT CONTENT */} 
             <LinearGradient 
-                colors={['#F6C484A6', '#ED7678A6']} 
+                colors={['#f6c484a6', '#ed7678a6']} 
                 style={styles.gradient} 
                 start={{ x: 0, y: 1 }} 
                 end={{ x: 1, y: 0 }} 
@@ -310,15 +326,29 @@ const Home = ({navigation}) => {
                         data={notifications}
                         keyExtractor={(item) => item.id.toString()}
                         renderItem={({ item }) => (
-                          <TouchableOpacity
-                            style={[
-                              styles.item,
-                              !item.is_read && styles.unread,
-                            ]}
-                            onPress={() => handlePressNotification(item.id)}
+                          <View 
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              paddingVertical: 10,
+                              paddingHorizontal: 5,
+                              backgroundColor: item.is_read ? '#fff' : '#f0f0f0',
+                              borderBottomWidth: 1,
+                              borderBottomColor: '#ddd',
+                            }}
                           >
-                            <Text style={styles.text}>{item.message}</Text>
-                          </TouchableOpacity>
+                            <TouchableOpacity
+                              style={{ flex: 1, marginRight: 8 }} 
+                              onPress={() => handlePressNotification(item.id)}
+                            >
+                              <Text style={{ fontSize: 16, color: '#333' }}>{item.message}</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity onPress={() => handleDeleteNotification(item.id)}>
+                              <Ionicons name="trash-outline" size={20} />
+                            </TouchableOpacity>
+                          </View>
                         )}
                       />
                     </View>
