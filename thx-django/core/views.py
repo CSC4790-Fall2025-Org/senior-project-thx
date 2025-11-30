@@ -416,3 +416,13 @@ def mark_notification_read(request, notif_id):
         return Response({"status": "ok"})
     except Notification.DoesNotExist:
         return Response({"error": "Notification not found"}, status=404)
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_notification(request, notif_id):
+    try:
+        notif = Notification.objects.get(id=notif_id, recipient=request.user)
+        notif.delete()
+        return Response({"status": "deleted"})
+    except Notification.DoesNotExist:
+        return Response({"error": "Notification not found"}, status=404)

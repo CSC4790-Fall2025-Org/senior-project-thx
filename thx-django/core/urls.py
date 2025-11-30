@@ -18,4 +18,5 @@ urlpatterns = [
     path('services/<int:pk>/toggle_saved/', ServiceViewSet.as_view({'post': 'toggle_saved'}), name='toggle_saved'),
     path('notifications/', views.get_notifications, name='get_notifications'),
     path('notifications/<int:notif_id>/read/', views.mark_notification_read, name='mark_notification_read'),
+    path('notifications/<int:notif_id>/delete/', views.delete_notification, name='delete_notification'),
 ]

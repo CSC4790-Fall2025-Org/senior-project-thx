@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import environ
 import os
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -32,7 +33,6 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])  # allow all for dev
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# SECRET_KEY = "django-insecure-*d2g4y15v1c#rf1^c+-^ao=^m=2ft1*l&=xxs+dy1hp+o*(mzd"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG = True
@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "rest_framework_simplejwt",
+    'rest_framework_simplejwt.token_blacklist',
     # Local
     "core",
     "core.authentication"
@@ -132,6 +133,13 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),  
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),    
+    'ROTATE_REFRESH_TOKENS': True,                 
+    'BLACKLIST_AFTER_ROTATION': True,             
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
