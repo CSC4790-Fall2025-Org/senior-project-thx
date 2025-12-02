@@ -22,6 +22,8 @@ Many students have unique skills and side hustles, but there’s no central plac
 
 - **Frontend**: React Native
 - **Backend**: Django (Python)
+- **Databse**: PostgreSQL (Neon)
+
 
 ## 🚀 Getting Started
 
@@ -34,17 +36,16 @@ cd senior-project-thx
 
 ---
 
-### 2. 🔧 Install Dependencies
-
-```bash
-npm install
-```
+### 2. 🔧 Configure API Base URL
+Before running the mobile app, every developer must update the `API_BASE` in `react-native-app/src/config.js`.
+Find your machine’s local IP address: `ipconfig getifaddr en0` (Mac) or `ipconfig` (Windows - IPv4 address).
 
 ---
 
 ### 3. 🛠 Install Required Packages
 
 ```bash
+npm install
 npm install @react-navigation/native
 npm install @react-navigation/stack
 npm install react-native-dropdown-picker
@@ -68,11 +69,11 @@ pip install psycopg2-binary
 ---
 
 ### 4. ▶️ Run the App
-Run in react-native-app:
+Run in `react-native-app`:
 ```bash
 npx expo start
 ```
-Run in thx-django:
+Run in `thx-django`:
 ```bash
 python manage.py runmigrations
 python manage.py migrate
