@@ -37,7 +37,12 @@ cd senior-project-thx
 ---
 
 ### 2. 🔧 Configure API Base URL
-Before running the mobile app, every developer must update the `API_BASE` in `react-native-app/src/config.js`.
+Before running the mobile app, every developer must update the IP address in `react-native-app/src/config.js`.
+
+```bash
+export const API_BASE = "http://YOUR_LOCAL_IP:8000/api";
+```
+
 Find your machine’s local IP address: `ipconfig getifaddr en0` (Mac) or `ipconfig` (Windows - IPv4 address).
 
 ---
