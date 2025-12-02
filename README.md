@@ -20,9 +20,8 @@ Many students have unique skills and side hustles, but there’s no central plac
 
 ## 🛠 Tech Stack
 
-- **Frontend**: React Native and Expo
+- **Frontend**: React Native
 - **Backend**: Django (Python)
-- **Database**: Firebase
 
 ## 🚀 Getting Started
 
@@ -43,27 +42,41 @@ npm install
 
 ---
 
-### 3. 🛠 Install Required Expo Packages
+### 3. 🛠 Install Required Packages
 
 ```bash
 npm install @react-navigation/native
 npm install @react-navigation/stack
+npm install react-native-dropdown-picker
+npm install react-native-modal
+
 npx expo install react-native-screens react-native-safe-area-context
 npx expo install react-native-gesture-handler
 npx expo install expo-router
 npx expo install @expo/vector-icons
 npx expo install expo-linear-gradient
 npx expo install @react-native-picker/picker
-```
+npx expo install expo-clipboard
+npx expo install @react-native-async-storage/async-storage
 
-(Also install any other packages like Firebase if used)
+pip install django-environ
+pip install django-cors-headers
+pip install djangorestframework-simplejwt
+pip install psycopg2-binary
+```
 
 ---
 
 ### 4. ▶️ Run the App
-
+Run in react-native-app:
 ```bash
 npx expo start
+```
+Run in thx-django:
+```bash
+python manage.py runmigrations
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
 ```
 
 This will open the app in Expo DevTools — from there you can run it on iOS Simulator, Android Emulator, or a real device via QR code.
