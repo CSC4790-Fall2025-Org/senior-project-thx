@@ -47,9 +47,34 @@ Find your machine’s local IP address: `ipconfig getifaddr en0` (Mac) or `ipcon
 
 ---
 
-### 3. 🛠 Install Required Packages
+### 3. 🔧 Configure Django Settings
+Before running the mobile app, every developer must add their own .env file to the `thx-django` directory.
+
+Use `.env.example` as a template by copying the file:
+```bash
+cd thx-django
+cp ./.env.example ./.env
+```
+
+Assuming you already have PostgreSQL18 installed, replace the placeholders for these values with the settings for your local Postgres database:
+```bash
+SECRET_KEY=your_secret_key
+DATABASE_URL=postgresql://your_db
+```
+
+---
+
+### 4. 🛠 Install Required Packages
 
 ```bash
+pip install django-environ
+pip install django-cors-headers
+pip install djangorestframework-simplejwt
+pip install psycopg2-binary
+```
+
+```bash
+cd ../react-native-app
 npm install
 npm install @react-navigation/native
 npm install @react-navigation/stack
@@ -64,25 +89,21 @@ npx expo install expo-linear-gradient
 npx expo install @react-native-picker/picker
 npx expo install expo-clipboard
 npx expo install @react-native-async-storage/async-storage
-
-pip install django-environ
-pip install django-cors-headers
-pip install djangorestframework-simplejwt
-pip install psycopg2-binary
 ```
 
 ---
 
-### 4. ▶️ Run the App
+### 5. ▶️ Run the App
+Run in `thx-django`:
+```bash
+python manage.py makemigrations
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
+```
+
 Run in `react-native-app`:
 ```bash
 npx expo start
-```
-Run in `thx-django`:
-```bash
-python manage.py runmigrations
-python manage.py migrate
-python manage.py runserver 0.0.0.0:8000
 ```
 
 This will open the app in Expo DevTools — from there you can run it on iOS Simulator, Android Emulator, or a real device via QR code.
